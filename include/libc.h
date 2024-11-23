@@ -28,6 +28,8 @@ int yield();
 
 int get_stats(int pid, struct stats *st);
 
+int getKey (char *b, int timeout);
+
 void SAVE_REGS(void);
 void RESTORE_REGS(void);
 

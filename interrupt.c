@@ -6,19 +6,15 @@
 #include <segment.h>
 #include <hardware.h>
 #include <io.h>
-
+#include <cir_buff.h>
 #include <sched.h>
-
+#include <list.h>
 #include <zeos_interrupt.h>
-
-#define MAX_BUFF 3
 
 Gate idt[IDT_ENTRIES];
 Register    idtR;
 
-char keyBuff[MAX_BUFF];
-int  keyHead, keyTail = 0;
-int  numKeys = 0;
+extern struct list_head blocked;
 
 char char_map[] =
 {
@@ -44,6 +40,18 @@ void clock_routine()
   zeos_show_clock();
   zeos_ticks ++;
   
+  struct list_head *pos, *n;
+  list_for_each_safe (pos, n, &blocked) {
+    struct task_struct *t = list_head_to_task_struct (pos);
+    t->p_stats.remaining_ticks--;
+    if (t->p_stats.remaining_ticks == 0) {
+        list_del (pos);
+        t->state =ST_READY;
+        list_add_tail (pos, &readyqueue);
+    }
+  }
+    
+  
   schedule();
 }
 
@@ -53,19 +61,15 @@ void keyboard_routine()
   
   if (c&0x80) {
   	printc_xy(0, 0, char_map[c&0x7f]);  
-
-    if (keyTail == keyHead && numKeys > 0)
-      // la cola ha atrapado la cabeza
-      // hay que sobreescribir una tecla
-      keyHead = (keyHead + 1)%MAX_BUFF;
-
-	  // escribimos la nueva tecla
-	  keyBuff[keyTail] = char_map[c&0x7f];
-      keyTail = (keyTail + 1)%MAX_BUFF;
-	  
-	  // tenemos una tecla más en el buffer
-	  if (numKeys < MAX_BUFF)
-	    numKeys++;
+  
+    buff_tail (char_map[c&0x7f]);
+    if (!list_empty (&blocked)) {
+        struct list_head *l = list_first (&blocked);
+        struct task_struct *t = list_head_to_task_struct (l);
+        list_del(l);
+        t->state = ST_READY;
+        list_add_tail (l, &readyqueue);
+    }
   }
 }
 

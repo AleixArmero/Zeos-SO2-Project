@@ -2,23 +2,19 @@
  * sys.c - Syscalls implementation
  */
 #include <devices.h>
-
 #include <utils.h>
-
 #include <io.h>
-
 #include <mm.h>
-
 #include <mm_address.h>
-
 #include <sched.h>
-
 #include <p_stats.h>
-
 #include <errno.h>
+#include <cir_buff.h>
 
 #define LECTURA 0
 #define ESCRIPTURA 1
+
+extern struct list_head blocked;
 
 void * get_ebp();
 
@@ -235,4 +231,31 @@ int sys_get_stats(int pid, struct stats *st)
     }
   }
   return -ESRCH; /*ESRCH */
+}
+
+int sys_getKey (char *b, int timeout)
+{
+    // comprobamos que la dirección dónde se guarda la tecla corresponde
+    // al espacio de datos del usuario
+    if ((unsigned)b < (PAG_LOG_INIT_DATA<<12) || (unsigned)b >= ((PAG_LOG_INIT_DATA + NUM_PAG_DATA)<<12))
+        return -1; // falta decidir el errno
+    
+    // si el buffer circular está vacío...
+    if (buff_empty ()) {
+        if (timeout <= 0)
+            return -1; // falta decidir el errno
+        // esperamos tecla
+        current()->p_stats.remaining_ticks = timeout;
+        current()->state = ST_BLOCKED;
+        list_add_tail (&current()->list, &blocked);
+        sched_next_rr ();
+        // comprobamos si hay tecla
+        if (buff_empty ())
+           return -1;  // falta decidir el errno
+    }
+    
+    // Aquí siempre habrá una tecla pendiente
+    *b = buff_head ();
+    
+    return 0;
 }
