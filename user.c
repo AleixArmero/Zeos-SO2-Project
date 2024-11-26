@@ -14,6 +14,17 @@ int __attribute__ ((__section__(".text.main")))
 
   gotoXY(0, 0);
 
+  char b[25][80][2];
+
+  for (int i = 0; i < 25; i++) {
+    for (int j = 0; j < 80; j++) {
+      b[i][j][0] = 'a';
+      b[i][j][1] = 0x0F;
+    }
+  }
+
+  clrscr(&b);
+
   while(1) {
 
     getKey(&c, 10000);

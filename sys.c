@@ -295,7 +295,7 @@ int sys_changeColor(int fg, int bg) {
 }
 
 
-//Funciona be amb el null, pero no tinc massa clar com se li ha de pasar el parametre
+//b ha de ser o null o una matriu 80x25x2 (on aquests 2 final es el caracter i el color)
 int sys_clrscr(char* b) {
 
   Word *screen = (Word *)0xb8000;
@@ -314,11 +314,14 @@ int sys_clrscr(char* b) {
 
     for (int i = 0; i < 25; i++) {
       for (int j = 0; j < 80; j++) {
-        screen[i*80 + j] = b[i*80 + j];
+        screen[i*80 + j] = (b[i*80 + j*2] & 0x00FF) | (b[i*80 + j*2 + 1]) << 8;
       }
     }
 
   }
+
+  x = 0;
+  y = 0;
 
   return 0;
 
