@@ -14,6 +14,8 @@
 #define LECTURA 0
 #define ESCRIPTURA 1
 
+extern Byte x, y;
+
 extern struct list_head blocked;
 
 void * get_ebp();
@@ -258,4 +260,66 @@ int sys_getKey (char *b, int timeout)
     *b = buff_head ();
     
     return 0;
+}
+
+int sys_gotoXY(int new_x, int new_y) {
+  if (x < 0 || y < 0 || x > 80 || y > 25)
+    return -1; //Falta el errno
+
+  x = (Byte) new_x;
+  y = (Byte) new_y;
+
+  return 0;
+
+}
+
+
+//Background and foreground in this screen just can have values from 0 to F.
+int sys_changeColor(int fg, int bg) {
+  
+  if (fg < 0 ||bg < 0 || fg > 15 || bg > 15)
+    return -1; //Falta el errno
+
+  Word *screen = (Word *)0xb8000;
+
+  for (int i = 0; i < 25; i++) {
+    for (int j = 0; j < 80; j++) {
+      //We get the character so we can change its color using the bg and fg given
+      char c = screen[i*80 + j] & 0x00FF;
+      screen[i*80 + j] = (c & 0x00FF) | ((bg << 4) | fg) << 8;
+    }
+  }
+
+  return 0;
+  
+}
+
+
+//Funciona be amb el null, pero no tinc massa clar com se li ha de pasar el parametre
+int sys_clrscr(char* b) {
+
+  Word *screen = (Word *)0xb8000;
+  
+  if (b == NULL) {
+
+    for (int i = 0; i < 25; i++) {
+      for (int j = 0; j < 80; j++) {
+        screen[i*80 + j] = 0x0000;
+      }
+    }
+
+  }
+
+  else {
+
+    for (int i = 0; i < 25; i++) {
+      for (int j = 0; j < 80; j++) {
+        screen[i*80 + j] = b[i*80 + j];
+      }
+    }
+
+  }
+
+  return 0;
+
 }

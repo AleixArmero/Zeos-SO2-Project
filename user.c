@@ -11,11 +11,17 @@ int __attribute__ ((__section__(".text.main")))
      /* __asm__ __volatile__ ("mov %0, %%cr3"::"r" (0) ); */
 
   char c;
-  
-  getKey(&c, 10000);
-  
-  if (c == 'x')
-  	write(1, "\nSuccess!\n", 10);
 
-  while(1) { }
+  gotoXY(0, 0);
+
+  while(1) {
+
+    getKey(&c, 10000);
+    write(1, &c, 1);
+
+    if (c == '.') {
+      changeColor(15, 0);
+    }
+
+  }
 }
