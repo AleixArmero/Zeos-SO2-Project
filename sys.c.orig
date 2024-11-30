@@ -15,7 +15,10 @@
 #define ESCRIPTURA 1
 
 extern Byte x, y;
+<<<<<<< HEAD
+=======
 extern Byte color;
+>>>>>>> backup-main
 
 extern struct list_head blocked;
 
@@ -269,7 +272,11 @@ int sys_getKey (char *b, int timeout)
 }
 
 int sys_gotoXY(int new_x, int new_y) {
+<<<<<<< HEAD
+  if (x < 0 || y < 0 || x > 80 || y > 25)
+=======
   if (x < 0 || y < 0 || x > 79 || y > 24)
+>>>>>>> backup-main
     return -1; //Falta el errno
 
   x = (Byte) new_x;
@@ -283,6 +290,14 @@ int sys_gotoXY(int new_x, int new_y) {
 //Background and foreground in this screen just can have values from 0 to F.
 int sys_changeColor(int fg, int bg) {
   
+<<<<<<< HEAD
+  if (fg < 0 ||bg < 0 || fg > 15 || bg > 15)
+    return -1; //Falta el errno
+
+  Word *screen = (Word *)0xb8000;
+
+  for (int i = 0; i < 25; i++) {
+=======
   if (fg < 0 || bg < 0 || fg > 15 || bg > 7)
     return -1; //Falta el errno
 
@@ -292,12 +307,17 @@ int sys_changeColor(int fg, int bg) {
   
   // we must change color only for next prints
   /*for (int i = 0; i < 25; i++) {
+>>>>>>> backup-main
     for (int j = 0; j < 80; j++) {
       //We get the character so we can change its color using the bg and fg given
       char c = screen[i*80 + j] & 0x00FF;
       screen[i*80 + j] = (c & 0x00FF) | ((bg << 4) | fg) << 8;
     }
+<<<<<<< HEAD
+  }
+=======
   }*/
+>>>>>>> backup-main
 
   return 0;
   
@@ -306,6 +326,13 @@ int sys_changeColor(int fg, int bg) {
 
 //b ha de ser o null o una matriu 80x25x2 (on aquests 2 final es el caracter i el color)
 int sys_clrscr(char* b) {
+<<<<<<< HEAD
+
+  Word *screen = (Word *)0xb8000;
+  
+  if (b == NULL) {
+
+=======
   // comprobamos si toda la matriz se encuentra en el espacio del usuario
   if (b != NULL &&
      ((unsigned)b < (PAG_LOG_INIT_DATA<<12) || (unsigned)b+25*80*2 > ((PAG_LOG_INIT_DATA + NUM_PAG_DATA)<<12)))
@@ -315,6 +342,7 @@ int sys_clrscr(char* b) {
   
   if (b == NULL) {
     // imprimimos la matriz por defecto
+>>>>>>> backup-main
     for (int i = 0; i < 25; i++) {
       for (int j = 0; j < 80; j++) {
         screen[i*80 + j] = 0x0000;
@@ -325,6 +353,13 @@ int sys_clrscr(char* b) {
 
   else {
 
+<<<<<<< HEAD
+    for (int i = 0; i < 25; i++) {
+      for (int j = 0; j < 80; j++) {
+        screen[i*80 + j] = (b[i*80 + j*2] & 0x00FF) | (b[i*80 + j*2 + 1]) << 8;
+      }
+    }
+=======
     /*for (int i = 0; i < 25; i++) {
       for (int j = 0; j < 80; j++) {
         screen[i*80 + j] = (b[i*80 + j*2] & 0x00FF) | (b[i*80 + j*2 + 1]) << 8;
@@ -333,6 +368,7 @@ int sys_clrscr(char* b) {
     
     // imprimimos la matriz del usuario
     copy_from_user (b, screen, 80*25*2);
+>>>>>>> backup-main
 
   }
 

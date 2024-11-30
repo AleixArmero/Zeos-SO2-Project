@@ -8,29 +8,13 @@ int __attribute__ ((__section__(".text.main")))
     /* Next line, tries to move value 0 to CR3 register. This register is a privileged one, and so it will raise an exception */
      /* __asm__ __volatile__ ("mov %0, %%cr3"::"r" (0) ); */
 
-  char c;
-
-  gotoXY(0, 0);
-
-  char b[25][80][2];
-
-  for (int i = 0; i < 25; i++) {
-    for (int j = 0; j < 80; j++) {
-      b[i][j][0] = 'a';
-      b[i][j][1] = 0x0F;
-    }
-  }
-
-  clrscr(&b);
-
+  write (1, "\nColor test", 11);
+  gotoXY (39, 12);
+  changeColor (14, 1); // fg yellow, bg blue
+  write (1, "Color test", 10);
+      
+  
   while(1) {
-
-    getKey(&c, 10000);
-    write(1, &c, 1);
-
-    if (c == '.') {
-      changeColor(15, 0);
-    }
-
+    
   }
 }
