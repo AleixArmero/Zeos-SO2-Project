@@ -115,6 +115,50 @@ ENTRY(getKey)
 	popl  %ebp
 	ret
 
+/* int gotoXY(int x, int y) */
+ENTRY(gotoXY)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $37, %eax
+	movl  8(%ebp), %ebx
+	movl  12(%ebp), %ecx
+	call  syscall_sysenter
+	popl  %ebx
+	test  %eax, %eax
+	js    nok
+	popl  %ebp
+	ret
+
+/* int changeColor(int fg, int bg) */
+ENTRY(changeColor)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $38, %eax
+	movl  8(%ebp), %ebx
+	movl  12(%ebp), %ecx
+	call  syscall_sysenter
+	popl  %ebx
+	test  %eax, %eax
+	js    nok
+	popl  %ebp
+	ret
+
+/* int clrscr(char* b) */
+ENTRY(clrscr)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $39, %eax
+	movl  8(%ebp), %ebx
+	call  syscall_sysenter
+	popl  %ebx
+	test  %eax, %eax
+	js    nok
+	popl  %ebp
+	ret
+
 ENTRY(SAVE_REGS)
       pushl %eax
       movl %eax, REGS    //SAVE EAX

@@ -14,7 +14,12 @@
 #define LECTURA 0
 #define ESCRIPTURA 1
 
+extern Byte x, y;
+extern Byte color;
+
 extern struct list_head blocked;
+
+int waitKey = 0;
 
 void * get_ebp();
 
@@ -240,22 +245,100 @@ int sys_getKey (char *b, int timeout)
     if ((unsigned)b < (PAG_LOG_INIT_DATA<<12) || (unsigned)b >= ((PAG_LOG_INIT_DATA + NUM_PAG_DATA)<<12))
         return -1; // falta decidir el errno
     
-    // si el buffer circular está vacío...
-    if (buff_empty ()) {
+    if (!buff_empty() && waitKey < buff_size())
+        *b = buff_head();
+    else {
+        // si el buffer circular está vacío o no hay suficientes teclas...
         if (timeout <= 0)
             return -1; // falta decidir el errno
-        // esperamos tecla
+        // esperamos una nueva tecla
+        waitKey++;
         current()->p_stats.remaining_ticks = timeout;
         current()->state = ST_BLOCKED;
         list_add_tail (&current()->list, &blocked);
         sched_next_rr ();
+        waitKey--;
         // comprobamos si hay tecla
         if (buff_empty ())
            return -1;  // falta decidir el errno
+        // leemos el buffer circular
+        *b = buff_head();
     }
     
-    // Aquí siempre habrá una tecla pendiente
-    *b = buff_head ();
-    
     return 0;
+}
+
+int sys_gotoXY(int new_x, int new_y) {
+  if (x < 0 || y < 0 || x > 79 || y > 24)
+    return -1; //Falta el errno
+
+  x = (Byte) new_x;
+  y = (Byte) new_y;
+
+  return 0;
+
+}
+
+
+//Background and foreground in this screen just can have values from 0 to F.
+int sys_changeColor(int fg, int bg) {
+  
+  if (fg < 0 || bg < 0 || fg > 15 || bg > 7)
+    return -1; //Falta el errno
+
+  //Word *screen = (Word *)0xb8000;
+
+  color = ((Byte)bg << 4) | (Byte)fg;
+  
+  // we must change color only for next prints
+  /*for (int i = 0; i < 25; i++) {
+    for (int j = 0; j < 80; j++) {
+      //We get the character so we can change its color using the bg and fg given
+      char c = screen[i*80 + j] & 0x00FF;
+      screen[i*80 + j] = (c & 0x00FF) | ((bg << 4) | fg) << 8;
+    }
+  }*/
+
+  return 0;
+  
+}
+
+
+//b ha de ser o null o una matriu 80x25x2 (on aquests 2 final es el caracter i el color)
+int sys_clrscr(char* b) {
+  // comprobamos si toda la matriz se encuentra en el espacio del usuario
+  if (b != NULL &&
+     ((unsigned)b < (PAG_LOG_INIT_DATA<<12) || (unsigned)b+25*80*2 > ((PAG_LOG_INIT_DATA + NUM_PAG_DATA)<<12)))
+     return -1; // falta poner el errno
+     
+  Word *screen = (Word *)0xb8000;
+  
+  if (b == NULL) {
+    // imprimimos la matriz por defecto
+    for (int i = 0; i < 25; i++) {
+      for (int j = 0; j < 80; j++) {
+        screen[i*80 + j] = 0x0000;
+      }
+    }
+
+  }
+
+  else {
+
+    /*for (int i = 0; i < 25; i++) {
+      for (int j = 0; j < 80; j++) {
+        screen[i*80 + j] = (b[i*80 + j*2] & 0x00FF) | (b[i*80 + j*2 + 1]) << 8;
+      }
+    }*/
+    
+    // imprimimos la matriz del usuario
+    copy_from_user (b, screen, 80*25*2);
+
+  }
+
+  x = 0;
+  y = 0;
+
+  return 0;
+
 }
