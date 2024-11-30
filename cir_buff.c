@@ -6,6 +6,11 @@ char keyBuff[MAX_BUFF];
 int  keyHead, keyTail = 0;
 int  numKeys = 0;
 
+int buff_size ()
+{
+    return numKeys;
+}
+
 // indica si el buffer circular está vacío
 int buff_empty ()
 {

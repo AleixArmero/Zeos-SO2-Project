@@ -18,6 +18,8 @@ extern Byte x, y;
 
 extern struct list_head blocked;
 
+int waitKey = 0;
+
 void * get_ebp();
 
 int check_fd(int fd, int permissions)
@@ -242,22 +244,25 @@ int sys_getKey (char *b, int timeout)
     if ((unsigned)b < (PAG_LOG_INIT_DATA<<12) || (unsigned)b >= ((PAG_LOG_INIT_DATA + NUM_PAG_DATA)<<12))
         return -1; // falta decidir el errno
     
-    // si el buffer circular está vacío...
-    if (buff_empty ()) {
+    if (!buff_empty() && waitKey < buff_size())
+        *b = buff_head();
+    else {
+        // si el buffer circular está vacío o no hay suficientes teclas...
         if (timeout <= 0)
             return -1; // falta decidir el errno
-        // esperamos tecla
+        // esperamos una nueva tecla
+        waitKey++;
         current()->p_stats.remaining_ticks = timeout;
         current()->state = ST_BLOCKED;
         list_add_tail (&current()->list, &blocked);
         sched_next_rr ();
+        waitKey--;
         // comprobamos si hay tecla
         if (buff_empty ())
            return -1;  // falta decidir el errno
+        // leemos el buffer circular
+        *b = buff_head();
     }
-    
-    // Aquí siempre habrá una tecla pendiente
-    *b = buff_head ();
     
     return 0;
 }
