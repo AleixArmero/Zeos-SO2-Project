@@ -158,6 +158,22 @@ ENTRY(clrscr)
 	js    nok
 	popl  %ebp
 	ret
+	
+/* int pthread_create(void * (*func ) (void *param), int N, void *param) */
+ENTRY(pthread_create)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $40, %eax
+	movl  8(%ebp), %ebx
+	movl  12(%ebp), %ecx
+	movl  16(%ebp), %edx
+	call  syscall_sysenter
+	popl  %ebx
+	test  %eax, %eax
+	js    nok
+	popl  %ebp
+	ret
 
 ENTRY(SAVE_REGS)
       pushl %eax

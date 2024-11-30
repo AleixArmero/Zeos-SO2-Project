@@ -165,6 +165,7 @@ void init_idle (void)
   union task_union *uc = (union task_union*)c;
 
   c->PID=0;
+  c->TID=0;
 
   c->total_quantum=DEFAULT_QUANTUM;
 
@@ -190,6 +191,7 @@ void init_task1(void)
   union task_union *uc = (union task_union*)c;
 
   c->PID=1;
+  c->TID=1;
 
   c->total_quantum=DEFAULT_QUANTUM;
 
@@ -202,6 +204,13 @@ void init_task1(void)
   allocate_DIR(c);
 
   set_user_pages(c);
+  // allocate and initialize user stack page
+  int ph = alloc_frame();
+  set_ss_pag(get_PT(c), PAG_LOG_INIT_DATA+NUM_PAG_DATA, ph);
+  
+  // point to the top of the user stack
+  c->user_stack = (unsigned)USER_ESP;
+  c->user_stack_size = 1;
 
   tss.esp0=(DWord)&(uc->stack[KERNEL_STACK_SIZE]);
   setMSR(0x175, 0, (unsigned long)&(uc->stack[KERNEL_STACK_SIZE]));
