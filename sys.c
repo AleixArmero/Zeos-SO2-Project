@@ -17,7 +17,7 @@
 extern Byte x, y;
 extern Byte color;
 
-extern struct list_head blocked;
+extern struct list_head blocked, threads;
 
 int waitKey = 0;
 
@@ -129,6 +129,9 @@ int sys_fork(void)
   uchild->task.PID=++global_PID;
   uchild->task.TID=++global_TID;
   uchild->task.state=ST_READY;
+  
+  /* Add thread to thread list */
+  list_add_tail (&uchild->task.anchor, &threads);
 
   int register_ebp;		/* frame pointer */
   /* Map Parent's ebp to child's stack */
@@ -197,17 +200,43 @@ void sys_exit()
 
   page_table_entry *process_PT = get_PT(current());
 
-  // Deallocate all the propietary physical pages
-  for (i=0; i<NUM_PAG_DATA; i++)
+  // Remove user stack pages
+  int stack_size = current()->user_stack_size;
+  for (i=0; i<stack_size; i++)
   {
-    free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+i));
-    del_ss_pag(process_PT, PAG_LOG_INIT_DATA+i);
+    free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA+i));
+    del_ss_pag(process_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA+i);
+  }
+  
+  // Remove from thread list
+  list_del (&current()->anchor);
+  
+  // Find another thread with the same PID
+  struct list_head *pos;
+  int found = 0;
+  list_for_each (pos, &threads) {
+  	struct task_struct *t = (struct task_struct*)((int)pos&0xfffff000);
+  	if (t->PID == current()->PID) {
+  	  found = 1;
+  	  break;
+  	}
+  }
+  
+  if (!found) {
+    // We want to kill the last thread of the process
+    // Deallocate all the propietary physical pages
+    for (i=0; i<NUM_PAG_DATA; i++)
+    {
+      free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+i));
+      del_ss_pag(process_PT, PAG_LOG_INIT_DATA+i);
+    }
   }
   
   /* Free task_struct */
   list_add_tail(&(current()->list), &freequeue);
   
   current()->PID=-1;
+  current()->TID=-1;
   
   /* Restarts execution of the next process */
   sched_next_rr();
@@ -416,6 +445,9 @@ int sys_pthread_create (void * (*function)(void *param), int N, void *param)
   uchild->task.state=ST_READY;
   uchild->task.user_stack=(PAG_LOG_INIT_DATA+NUM_PAG_DATA+N)<<12;
   uchild->task.user_stack_size=N;
+  
+  /* Add thread to thread list */
+  list_add_tail (&uchild->task.anchor, &threads);
 
   /* Set up thread user stack throught parent */
   int parent_stack_size = current()->user_stack_size;

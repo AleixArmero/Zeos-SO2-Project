@@ -9,7 +9,9 @@ void *test (void *value)
 	write(1, (char *)value, 5);
 	write(1, "\n", 1);
 	
-	while(1) {}
+	exit();
+	write(1, "Not to be written",  17);
+	return 0;
 }
 
 int __attribute__ ((__section__(".text.main")))
@@ -22,8 +24,11 @@ int __attribute__ ((__section__(".text.main")))
   int pid = fork ();
   if (pid > 0)
   	write (1, "Parent ok!\n", 11);
-  else if (pid == 0)
+  else if (pid == 0) {
   	write (1, "Child ok!\n", 10);
+  	pthread_create ((void *) test, 2, (void *) value);
+  	exit ();
+  }
   else
   	write (1, "Fork error!\n", 12);
  
