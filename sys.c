@@ -74,7 +74,6 @@ int sys_fork(void)
   
   /* Copy the parent's task struct to child's */
   copy_data(current(), uchild, sizeof(union task_union));
-  int stack_size = uchild->task.user_stack_size;
   
   /* new pages dir */
   allocate_DIR((struct task_struct*)uchild);
@@ -82,31 +81,35 @@ int sys_fork(void)
   /* Allocate pages for DATA+STACK */
   int new_ph_pag, pag, i;
   page_table_entry *process_PT = get_PT(&uchild->task);
-  for (pag=0; pag<NUM_PAG_DATA+stack_size; pag++)
+  page_table_entry *parent_PT = get_PT(current());
+  for (pag=PAG_LOG_INIT_DATA; pag<1024; pag++)
   {
-    new_ph_pag=alloc_frame();
-    if (new_ph_pag!=-1) /* One page allocated */
-    {
-      set_ss_pag(process_PT, PAG_LOG_INIT_DATA+pag, new_ph_pag);
-    }
-    else /* No more free pages left. Deallocate everything */
-    {
-      /* Deallocate allocated pages. Up to pag. */
-      for (i=0; i<pag; i++)
+     if (get_frame (parent_PT, pag)) {
+      new_ph_pag=alloc_frame();
+      if (new_ph_pag!=-1) /* One page allocated */
       {
-        free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+i));
-        del_ss_pag(process_PT, PAG_LOG_INIT_DATA+i);
+        set_ss_pag(process_PT, pag, new_ph_pag);
       }
-      /* Deallocate task_struct */
-      list_add_tail(lhcurrent, &freequeue);
-      
-      /* Return error */
-      return -EAGAIN; 
+      else /* No more free pages left. Deallocate everything */
+      {
+        /* Deallocate allocated pages. Up to pag. */
+        for (i=PAG_LOG_INIT_DATA; i<pag; i++)
+        {
+          if (get_frame (parent_PT, pag)) {
+            free_frame(get_frame(process_PT, i));
+            del_ss_pag(process_PT, i);
+          }
+        }
+        /* Deallocate task_struct */
+        list_add_tail(lhcurrent, &freequeue);
+        
+        /* Return error */
+        return -EAGAIN; 
+      }
     }
   }
-
+  
   /* Copy parent's SYSTEM and CODE to child. */
-  page_table_entry *parent_PT = get_PT(current());
   for (pag=0; pag<NUM_PAG_KERNEL; pag++)
   {
     set_ss_pag(process_PT, pag, get_frame(parent_PT, pag));
@@ -115,14 +118,20 @@ int sys_fork(void)
   {
     set_ss_pag(process_PT, PAG_LOG_INIT_CODE+pag, get_frame(parent_PT, PAG_LOG_INIT_CODE+pag));
   }
-  /* Copy parent's DATA to child. We will use TOTAL_PAGES-1 as a temp logical page to map to */
-  for (pag=NUM_PAG_KERNEL+NUM_PAG_CODE; pag<NUM_PAG_KERNEL+NUM_PAG_CODE+NUM_PAG_DATA+stack_size; pag++)
+  /* Copy parent's DATA to child. */
+  page_table_entry *parent_DIR = get_DIR(current());
+  set_ss_pag(parent_DIR, 1, (unsigned)process_PT>>12);
+  for (pag=NUM_PAG_KERNEL+NUM_PAG_CODE; pag<NUM_PAG_KERNEL+NUM_PAG_CODE+NUM_PAG_DATA; pag++)
   {
-    /* Map one child page to parent's address space. */
-    set_ss_pag(parent_PT, pag+NUM_PAG_DATA+stack_size, get_frame(process_PT, pag));
-    copy_data((void*)(pag<<12), (void*)((pag+NUM_PAG_DATA+stack_size)<<12), PAGE_SIZE);
-    del_ss_pag(parent_PT, pag+NUM_PAG_DATA+stack_size);
+    copy_data((void*)(pag<<12), (void*)((0x400+pag)<<12), PAGE_SIZE);
   }
+  for (pag=PAG_LOG_INIT_DATA+NUM_PAG_DATA; pag<1024; pag++)
+  {
+    if (get_frame(parent_PT, pag))
+      copy_data((void*)(pag<<12), (void*)((0x400+pag)<<12), PAGE_SIZE);
+  }
+  del_ss_pag (parent_DIR, 1);
+  
   /* Deny access to the child's memory space */
   set_cr3(get_DIR(current()));
 
@@ -202,10 +211,11 @@ void sys_exit()
 
   // Remove user stack pages
   int stack_size = current()->user_stack_size;
+  int stack_page = current()->user_stack_page;
   for (i=0; i<stack_size; i++)
   {
-    free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA+i));
-    del_ss_pag(process_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA+i);
+    free_frame(get_frame(process_PT, stack_page+i));
+    del_ss_pag(process_PT, stack_page+i);
   }
   
   // Remove from thread list
@@ -230,6 +240,9 @@ void sys_exit()
       free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+i));
       del_ss_pag(process_PT, PAG_LOG_INIT_DATA+i);
     }
+  }
+  else {
+    set_cr3(get_DIR(current()));
   }
   
   /* Free task_struct */
@@ -274,7 +287,7 @@ int sys_getKey (char *b, int timeout)
 {
     // comprobamos que la dirección dónde se guarda la tecla corresponde
     // al espacio de datos del usuario
-    if ((unsigned)b < (PAG_LOG_INIT_DATA<<12) || (unsigned)b >= ((PAG_LOG_INIT_DATA + NUM_PAG_DATA)<<12))
+    if (!access_ok(VERIFY_WRITE, b, sizeof(char)))
         return -1; // falta decidir el errno
     
     if (!buff_empty() && waitKey < buff_size())
@@ -339,8 +352,7 @@ int sys_changeColor(int fg, int bg) {
 //b ha de ser o null o una matriu 80x25x2 (on aquests 2 final es el caracter i el color)
 int sys_clrscr(char* b) {
   // comprobamos si toda la matriz se encuentra en el espacio del usuario
-  if (b != NULL &&
-     ((unsigned)b < (PAG_LOG_INIT_DATA<<12) || (unsigned)b+25*80*2 > ((PAG_LOG_INIT_DATA + NUM_PAG_DATA)<<12)))
+  if (b != NULL && !access_ok(VERIFY_READ, b, sizeof(char[25][80][2])))
      return -1; // falta poner el errno
      
   Word *screen = (Word *)0xb8000;
@@ -375,14 +387,10 @@ int sys_clrscr(char* b) {
 
 }
 
-int sys_pthread_create (void * (*function)(void *param), int N, void *param)
+int sys_create_thread (void * (*function)(void *param), int N, void *param)
 {
   struct list_head *lhcurrent = NULL;
   union task_union *uchild;
-  
-  // We need one free page on parent to setup user stack
-  if (N < 1 || N > 1023-(NUM_PAG_KERNEL+NUM_PAG_CODE+NUM_PAG_DATA))
-    return -EINVAL;
   
   /* Any free task_struct? */
   if (list_empty(&freequeue)) return -ENOMEM;
@@ -397,67 +405,70 @@ int sys_pthread_create (void * (*function)(void *param), int N, void *param)
   copy_data(current(), uchild, sizeof(union task_union));
   uchild->task.user_stack_size = N;
   
-  /* new pages dir */
-  allocate_DIR((struct task_struct*)uchild);
-  
   /* Allocate pages for STACK */
-  int new_ph_pag, pag, i;
+  int new_ph_pag, i;
   page_table_entry *process_PT = get_PT(&uchild->task);
-  for (pag=0; pag<N; pag++)
+  int found = 0;
+  int pag = PAG_LOG_INIT_DATA+NUM_PAG_DATA-1;
+  while (pag < 1024 && !found)
   {
-    new_ph_pag=alloc_frame();
-    if (new_ph_pag!=-1) /* One page allocated */
+    pag++;
+    int available = 0;
+    while (available < N && pag+N<1024)
     {
-      set_ss_pag(process_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA+pag, new_ph_pag);
+      if (!get_frame (process_PT, pag))
+        available++;
+      else
+        available=0;
+      pag++;
     }
-    else /* No more free pages left. Deallocate everything */
+    if (available == N)
+      found = 1;
+  }
+  // if found, pag points to the next page of last log pag of the gap
+  
+  if (found)
+  {
+    for (i = pag-N; i < pag; i++)
     {
-      /* Deallocate allocated pages. Up to pag. */
-      for (i=0; i<pag; i++)
+      new_ph_pag=alloc_frame();
+      if (new_ph_pag!=-1) /* One page allocated */
       {
-        free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA+i));
-        del_ss_pag(process_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA+i);
+        set_ss_pag(process_PT, i, new_ph_pag);
       }
-      /* Deallocate task_struct */
-      list_add_tail(lhcurrent, &freequeue);
+      else /* No more free pages left. Deallocate everything */
+      {
+        /* Deallocate allocated pages. */
+        for (int j = pag - N; j < pag + i; j++)
+        {
+          free_frame(get_frame(process_PT, j));
+          del_ss_pag(process_PT, j);
+        }
+        /* Deallocate task_struct */
+        list_add_tail(lhcurrent, &freequeue);
       
-      /* Return error */
-      return -EAGAIN; 
+        /* Return error */
+        return -EAGAIN; 
+      }
     }
   }
-
-  /* Copy parent's SYSTEM, CODE, and DATA to child. */
-  page_table_entry *parent_PT = get_PT(current());
-  for (pag=0; pag<NUM_PAG_KERNEL; pag++)
+  else
   {
-    set_ss_pag(process_PT, pag, get_frame(parent_PT, pag));
-  }
-  for (pag=0; pag<NUM_PAG_CODE; pag++)
-  {
-    set_ss_pag(process_PT, PAG_LOG_INIT_CODE+pag, get_frame(parent_PT, PAG_LOG_INIT_CODE+pag));
-  }
-  for (pag=0; pag<NUM_PAG_DATA; pag++)
-  {
-    set_ss_pag(process_PT, PAG_LOG_INIT_DATA+pag, get_frame(parent_PT, PAG_LOG_INIT_DATA+pag));
+    list_add_tail(lhcurrent, &freequeue);
+    return -EAGAIN;
   }
 
   uchild->task.TID=++global_TID;
   uchild->task.state=ST_READY;
-  uchild->task.user_stack=(PAG_LOG_INIT_DATA+NUM_PAG_DATA+N)<<12;
-  uchild->task.user_stack_size=N;
+  uchild->task.user_stack_page = pag-N;
   
   /* Add thread to thread list */
   list_add_tail (&uchild->task.anchor, &threads);
 
   /* Set up thread user stack throught parent */
-  int parent_stack_size = current()->user_stack_size;
-  set_ss_pag(parent_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA+parent_stack_size, new_ph_pag);
-  unsigned *top = (unsigned *)(((PAG_LOG_INIT_DATA+NUM_PAG_DATA+parent_stack_size+1)<<12)-8);
+  unsigned *top = (unsigned *)(((uchild->task.user_stack_page+uchild->task.user_stack_size-1)<<12)-8);
   *top = 0;
   *(top+1) = (unsigned) param;
-  del_ss_pag(parent_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA+parent_stack_size);
-  /* Deny access to the thread's user stack space */
-  set_cr3(get_DIR(current()));
   
   // Set up the system stack
   uchild->stack[KERNEL_STACK_SIZE-2] = (unsigned) top;

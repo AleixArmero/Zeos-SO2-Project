@@ -33,7 +33,7 @@ extern struct list_head blocked;
 struct list_head freequeue;
 // Ready queue
 struct list_head readyqueue;
-// Thread queue
+// Threads queue
 struct list_head threads;
 
 void init_stats(struct stats *s)
@@ -208,13 +208,10 @@ void init_task1(void)
   allocate_DIR(c);
 
   set_user_pages(c);
-  // allocate and initialize user stack page
-  int ph = alloc_frame();
-  set_ss_pag(get_PT(c), PAG_LOG_INIT_DATA+NUM_PAG_DATA, ph);
   
   // point to the top of the user stack
-  c->user_stack = (unsigned)USER_ESP;
-  c->user_stack_size = 1;
+  c->user_stack_page = -1;
+  c->user_stack_size = -1;
 
   tss.esp0=(DWord)&(uc->stack[KERNEL_STACK_SIZE]);
   setMSR(0x175, 0, (unsigned long)&(uc->stack[KERNEL_STACK_SIZE]));
@@ -265,8 +262,9 @@ void inner_task_switch(union task_union *new)
   tss.esp0=(int)&(new->stack[KERNEL_STACK_SIZE]);
   setMSR(0x175, 0, (unsigned long)&(new->stack[KERNEL_STACK_SIZE]));
 
-  /* TLB flush. New address space */
-  set_cr3(new_DIR);
+  /* TLB flush. New address space, only if process changes */
+  if (current()->PID != new->task.PID)
+    set_cr3(new_DIR);
 
   switch_stack(&current()->register_esp, new->task.register_esp);
 }

@@ -22,8 +22,8 @@ struct task_struct {
   page_table_entry * dir_pages_baseAddr;
   struct list_head list;	/* Task struct enqueuing */
   int register_esp;		/* position in the stack */
-  unsigned user_stack;		/* position of the user stack */
-  int user_stack_size;		/* size, in pages, of the user stack */
+  int user_stack_page;		/* first page of the user stack */
+  int user_stack_size;		/* size of the user stack */
   enum state_t state;		/* State of the process */
   int total_quantum;		/* Total quantum of the process */
   struct stats p_stats;		/* Process stats */

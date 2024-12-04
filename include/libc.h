@@ -36,7 +36,7 @@ int changeColor(int fg, int bg);
 
 int clrscr(char* b);
 
-int pthread_create (void * (*function) (void *param), int N, void *param);
+int create_thread (void * (*function) (void *param), int N, void *param);
 
 void SAVE_REGS(void);
 void RESTORE_REGS(void);

@@ -159,8 +159,8 @@ ENTRY(clrscr)
 	popl  %ebp
 	ret
 	
-/* int pthread_create(void * (*func ) (void *param), int N, void *param) */
-ENTRY(pthread_create)
+/* int create_thread(void * (*func ) (void *param), int N, void *param) */
+ENTRY(create_thread)
 	pushl %ebp
 	movl  %esp, %ebp
 	pushl %ebx
