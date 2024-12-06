@@ -394,7 +394,6 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
 
   /*Mirem que ala funció es trobi en la zona de codi, ja que es posible que ens donin una direcció a una funció en la zona
   de kernel (crec, no estic massa segur)*/
-  if (function < PAG_LOG_INIT_CODE || function > PAG_LOG_INIT_CODE+NUM_PAG_CODE) return -EINVAL;
 
   struct list_head *lhcurrent = NULL;
   union task_union *uchild;
@@ -423,7 +422,7 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
     int available = 0;
     while (available < N && pag+N<1024)
     {
-      if (!get_frame (process_PT, pag))
+      if (!is_assigned(process_PT, pag))
         available++;
       else
         available=0;

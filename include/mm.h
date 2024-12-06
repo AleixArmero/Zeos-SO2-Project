@@ -38,5 +38,6 @@ void setTSS();
 void set_ss_pag(page_table_entry *PT, unsigned page,unsigned frame);
 void del_ss_pag(page_table_entry *PT, unsigned page);
 unsigned int get_frame(page_table_entry *PT, unsigned int page);
+unsigned int is_assigned (page_table_entry *PT, unsigned int logical_page);
 
 #endif  /* __MM_H__ */
