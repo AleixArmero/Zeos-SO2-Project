@@ -210,6 +210,8 @@ void sys_exit()
 
   page_table_entry *process_PT = get_PT(current());
 
+  pointing_dir[current()->dir]--;
+
   // Remove user stack pages
   int stack_size = current()->user_stack_size;
   int stack_page = current()->user_stack_page;
@@ -459,6 +461,8 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
   uchild->task.TID=++global_TID;
   uchild->task.state=ST_READY;
   uchild->task.user_stack_page = pag-N;
+
+  pointing_dir[current()->dir]++;
   
   /* Add thread to thread list */
   list_add_tail (&uchild->task.anchor, &current()->threads);

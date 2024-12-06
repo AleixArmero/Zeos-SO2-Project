@@ -26,6 +26,7 @@ struct task_struct {
   int user_stack_size;		/* size of the user stack */
   enum state_t state;		/* State of the process */
   int total_quantum;		/* Total quantum of the process */
+  unsigned int dir;
   struct stats p_stats;		/* Process stats */
   struct list_head anchor;	/* Anchor to thread list */
   struct list_head threads;

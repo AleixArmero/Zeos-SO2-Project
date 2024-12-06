@@ -16,6 +16,8 @@ Descriptor  *gdt = (Descriptor *) GDT_START;
 /* Register pointing to the memory segments table */
 Register    gdtR;
 
+int pointing_dir[NR_TASKS];
+
 /* PAGING */
 /* Variables containing the page directory and the page table */
   
@@ -46,7 +48,7 @@ for (i = 0; i< NR_TASKS; i++) {
   dir_pages[i][ENTRY_DIR_PAGES].bits.user = 1;
   dir_pages[i][ENTRY_DIR_PAGES].bits.rw = 1;
   dir_pages[i][ENTRY_DIR_PAGES].bits.present = 1;
-
+  pointing_dir[i] = 0;
 }
 
 }

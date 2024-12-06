@@ -60,13 +60,18 @@ page_table_entry * get_PT (struct task_struct *t)
 
 int allocate_DIR(struct task_struct *t) 
 {
-	int pos;
 
-	pos = ((int)t-(int)task)/sizeof(union task_union);
+  for (int i = 0; i < NR_TASKS; i++) {
+    if (pointing_dir[i] < 1) {
+      t->dir_pages_baseAddr = (page_table_entry*) &dir_pages[i];
+      pointing_dir[i] = 1;
+      t->dir = i;
+      return 1;
+    }
+  }
 
-	t->dir_pages_baseAddr = (page_table_entry*) &dir_pages[pos]; 
+  return 0;
 
-	return 1;
 }
 
 void cpu_idle(void)
