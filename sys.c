@@ -389,6 +389,13 @@ int sys_clrscr(char* b) {
 
 int sys_create_thread (void * (*function)(void *param), int N, void *param)
 {
+
+  if (N < 0) return -EINVAL;
+
+  /*Mirem que ala funció es trobi en la zona de codi, ja que es posible que ens donin una direcció a una funció en la zona
+  de kernel (crec, no estic massa segur)*/
+  if (function < PAG_LOG_INIT_CODE || function > PAG_LOG_INIT_CODE+NUM_PAG_CODE) return -EINVAL;
+
   struct list_head *lhcurrent = NULL;
   union task_union *uchild;
   
