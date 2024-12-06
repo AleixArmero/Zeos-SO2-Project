@@ -33,8 +33,6 @@ extern struct list_head blocked;
 struct list_head freequeue;
 // Ready queue
 struct list_head readyqueue;
-// Threads queue
-struct list_head threads;
 
 void init_stats(struct stats *s)
 {
@@ -198,8 +196,10 @@ void init_task1(void)
   c->total_quantum=DEFAULT_QUANTUM;
 
   c->state=ST_RUN;
+
+  INIT_LIST_HEAD(&c->threads);
   
-  list_add_tail (&c->anchor, &threads);
+  list_add_tail (&c->anchor, &c->threads);
 
   remaining_quantum=c->total_quantum;
 
@@ -238,7 +238,6 @@ void init_sched()
   init_freequeue();
   INIT_LIST_HEAD(&readyqueue);
   INIT_LIST_HEAD(&blocked);
-  INIT_LIST_HEAD(&threads);
 }
 
 struct task_struct* current()

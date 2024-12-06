@@ -17,7 +17,7 @@
 extern Byte x, y;
 extern Byte color;
 
-extern struct list_head blocked, threads;
+extern struct list_head blocked;
 
 int waitKey = 0;
 
@@ -138,9 +138,10 @@ int sys_fork(void)
   uchild->task.PID=++global_PID;
   uchild->task.TID=++global_TID;
   uchild->task.state=ST_READY;
+  INIT_LIST_HEAD(&uchild->task.threads);
   
   /* Add thread to thread list */
-  list_add_tail (&uchild->task.anchor, &threads);
+  list_add_tail (&uchild->task.anchor, &uchild->task.threads);
 
   int register_ebp;		/* frame pointer */
   /* Map Parent's ebp to child's stack */
@@ -221,18 +222,9 @@ void sys_exit()
   // Remove from thread list
   list_del (&current()->anchor);
   
-  // Find another thread with the same PID
-  struct list_head *pos;
-  int found = 0;
-  list_for_each (pos, &threads) {
-  	struct task_struct *t = (struct task_struct*)((int)pos&0xfffff000);
-  	if (t->PID == current()->PID) {
-  	  found = 1;
-  	  break;
-  	}
-  }
+  // Find another thread on the list
   
-  if (!found) {
+  if (list_empty(&current()->threads)) {
     // We want to kill the last thread of the process
     // Deallocate all the propietary physical pages
     for (i=0; i<NUM_PAG_DATA; i++)
@@ -469,7 +461,7 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
   uchild->task.user_stack_page = pag-N;
   
   /* Add thread to thread list */
-  list_add_tail (&uchild->task.anchor, &threads);
+  list_add_tail (&uchild->task.anchor, &current()->threads);
 
   /* Set up thread user stack throught parent */
   unsigned *top = (unsigned *)(((uchild->task.user_stack_page+uchild->task.user_stack_size-1)<<12)-8);
