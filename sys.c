@@ -84,7 +84,7 @@ int sys_fork(void)
   page_table_entry *parent_PT = get_PT(current());
   for (pag=PAG_LOG_INIT_DATA; pag<1024; pag++)
   {
-     if (get_frame (parent_PT, pag)) {
+     if (is_assigned(parent_PT, pag)) {
       new_ph_pag=alloc_frame();
       if (new_ph_pag!=-1) /* One page allocated */
       {
@@ -95,7 +95,7 @@ int sys_fork(void)
         /* Deallocate allocated pages. Up to pag. */
         for (i=PAG_LOG_INIT_DATA; i<pag; i++)
         {
-          if (get_frame (parent_PT, pag)) {
+          if (is_assigned(parent_PT, i)) {
             free_frame(get_frame(process_PT, i));
             del_ss_pag(process_PT, i);
           }
@@ -127,7 +127,7 @@ int sys_fork(void)
   }
   for (pag=PAG_LOG_INIT_DATA+NUM_PAG_DATA; pag<1024; pag++)
   {
-    if (get_frame(parent_PT, pag))
+    if (is_assigned(parent_PT, pag))
       copy_data((void*)(pag<<12), (void*)((0x400+pag)<<12), PAGE_SIZE);
   }
   del_ss_pag (parent_DIR, 1);
@@ -384,7 +384,7 @@ int sys_clrscr(char* b) {
 int sys_create_thread (void * (*function)(void *param), int N, void *param)
 {
 
-  if (N < 0) return -EINVAL;
+  if (N < 1 || N > 1024 - PAG_LOG_INIT_DATA+NUM_PAG_DATA) return -EINVAL;
 
   /*Mirem que ala funció es trobi en la zona de codi, ja que es posible que ens donin una direcció a una funció en la zona
   de kernel (crec, no estic massa segur)*/
