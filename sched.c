@@ -35,7 +35,7 @@ struct list_head freequeue;
 struct list_head readyqueue;
 
 // Available semaphores list
-int available_sems[MAX_SEM];
+struct list_head freesems;
 struct sem_t sems[MAX_SEM];
 
 void init_stats(struct stats *s)
@@ -231,8 +231,11 @@ void init_task1(void)
 
 void init_sems()
 {
-  for (int i = 0; i < MAX_SEM; ++i)
-    available_sems[i] = 0;
+  INIT_LIST_HEAD(&freesems);
+  for (int i = 0; i < MAX_SEM; ++i) {
+    sems[i].parent=NULL;
+    list_add_tail(&sems[i].anchor, &freesems);
+  }
 }
 
 void init_freequeue()

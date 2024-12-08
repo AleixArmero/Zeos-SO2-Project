@@ -14,7 +14,7 @@
 #define LECTURA 0
 #define ESCRIPTURA 1
 
-extern int available_sems[MAX_SEM];
+extern struct list_head freesems;
 extern struct sem_t sems[MAX_SEM];
 
 extern Byte x, y;
@@ -244,8 +244,8 @@ void sys_exit()
   }
   
   /* Destroy semaphores */
-  struct list_head *pos;
-  list_for_each(pos, &current()->sems) {
+  struct list_head *pos, *n;
+  list_for_each_safe(pos, n, &current()->sems) {
   	struct sem_t *s = list_entry(pos, struct sem_t, anchor);
   	sys_semDestroy(s);
   }
@@ -398,8 +398,8 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
   if (N < 1 || N > 1024 - PAG_LOG_INIT_DATA+NUM_PAG_DATA)
       return -EINVAL;
   
-  // Param can be a pointer to a semaphore
-  if (!access_ok(VERIFY_READ, function, sizeof(void *)))
+  if (!access_ok(VERIFY_READ, function, sizeof(void *)) ||
+      !access_ok(VERIFY_READ, param, sizeof(void *)))
       return -EINVAL;
 
   /*Mirem que ala funció es trobi en la zona de codi, ja que es posible que ens donin una direcció a una funció en la zona
@@ -515,22 +515,12 @@ struct sem_t *sys_semCreate (int initial_value)
   if (initial_value < 0)
     return NULL;
     
-  int i = 0;
-  int found = 0;
-  
-  /* Trying to find an available semaphore */
-  while (!found && i < MAX_SEM) {
-    if (available_sems[i] == 0) {
-      available_sems[i] = 1;
-      found = 1;
-    }
-    i++;
-  }
-  if (!found)
+  if (list_empty(&freesems))
     return NULL;
 
-  /* Available semaphore found */
-  struct sem_t *s = &sems[i-1];
+  struct list_head *l = list_first(&freesems);
+  struct sem_t *s = list_entry(l, struct sem_t, anchor);
+  list_del(l);
   s->count = initial_value;
   s->parent = current();
   list_add_tail(&s->anchor, &current()->sems);
@@ -540,7 +530,7 @@ struct sem_t *sys_semCreate (int initial_value)
 
 int sys_semWait (struct sem_t *s) {
   int position = ((int) (s - sems)) / sizeof(struct sem_t);
-  if (position < 0 || position >= MAX_SEM || !available_sems[position])
+  if (position < 0 || position >= MAX_SEM)
     return -EINVAL;
     
   s->count--;
@@ -554,7 +544,7 @@ int sys_semWait (struct sem_t *s) {
 
 int sys_semSignal (struct sem_t *s) {
   int position = ((int) (s - sems)) / sizeof(struct sem_t);
-  if (position < 0 || position >= MAX_SEM || !available_sems[position])
+  if (position < 0 || position >= MAX_SEM || s->parent==NULL)
     return -EINVAL;
     
   s->count++;
@@ -569,7 +559,7 @@ int sys_semSignal (struct sem_t *s) {
 
 int sys_semDestroy (struct sem_t *s) {
   int position = ((int) (s - sems)) / sizeof(struct sem_t);
-  if (position < 0 || position >= MAX_SEM || !available_sems[position] || s->parent != current())
+  if (position < 0 || position >= MAX_SEM || s->parent != current())
     return -EINVAL;
   
   struct list_head *pos, *n;
@@ -577,7 +567,9 @@ int sys_semDestroy (struct sem_t *s) {
     struct task_struct *t = list_head_to_task_struct (pos);
     update_process_state_rr(t,&readyqueue);
   }
-  available_sems[position] = 0;
-  
+  list_del(&s->anchor);
+  s->parent=NULL;
+  list_add_tail(&s->anchor, &freesems);
+ 
   return 0;
 }

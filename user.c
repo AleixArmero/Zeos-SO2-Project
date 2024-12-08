@@ -2,15 +2,16 @@
 
 char buff[24];
 int value = 0;
+sem_t *s;
 
-void *test (void *s)
+void *test (void *v)
 {
 	write(1, "\nThread waiting...\n",19);
 	
-	int e = semWait((sem_t *)s);
+	int e = semWait(s);
 	if (e < 0) perror();
 	value++;
-	e = semSignal((sem_t *)s);
+	e = semSignal(s);
 	if (e < 0) perror();
 
 	write(1, "\nThread pass!\n", 14);
@@ -27,7 +28,7 @@ int __attribute__ ((__section__(".text.main")))
 
   write (1, "\nSemaphore test...\n", 19);
   
-  sem_t *s = semCreate(0);
+  s = semCreate(0);
   
   int pid = fork ();
   if (pid > 0) {
@@ -35,8 +36,8 @@ int __attribute__ ((__section__(".text.main")))
   	exit();
   }
   else if (pid == 0) {
-  	create_thread ((void *) test, 1, (void *) s);
-  	create_thread ((void *) test, 1, (void *) s);
+  	create_thread ((void *) test, 1, (void *) &pid);
+  	create_thread ((void *) test, 1, (void *) &pid);
   }
   else
   	write (1, "Fork error!\n", 12);
