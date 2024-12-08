@@ -10,9 +10,17 @@
 #include <mm_address.h>
 #include <stats.h>
 
-
 #define NR_TASKS      10
 #define KERNEL_STACK_SIZE	1024
+
+#define MAX_SEM 10
+
+struct sem_t {
+  int count;
+  struct list_head blocked;
+  struct list_head anchor;
+  struct task_struct *parent;
+};
 
 enum state_t { ST_RUN, ST_READY, ST_BLOCKED };
 
@@ -29,7 +37,8 @@ struct task_struct {
   unsigned int dir;
   struct stats p_stats;		/* Process stats */
   struct list_head anchor;	/* Anchor to thread list */
-  struct list_head threads;
+  struct list_head threads;     /* Siblings of this thread */
+  struct list_head sems;	/* Semaphores created by this process */
 };
 
 union task_union {
@@ -55,6 +64,8 @@ void init_task1(void);
 void init_idle(void);
 
 void init_sched(void);
+
+void init_sems(void);
 
 void schedule(void);
 

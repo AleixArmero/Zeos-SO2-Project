@@ -9,6 +9,7 @@
 #include <stats.h>
 
 extern int errno;
+typedef unsigned sem_t;
 
 int write(int fd, char *buffer, int size);
 
@@ -26,6 +27,8 @@ void exit();
 
 int yield();
 
+int gettime();
+
 int get_stats(int pid, struct stats *st);
 
 int getKey (char *b, int timeout);
@@ -37,6 +40,11 @@ int changeColor(int fg, int bg);
 int clrscr(char* b);
 
 int create_thread (void * (*function) (void *param), int N, void *param);
+
+sem_t *semCreate (int initial_value);
+int semWait (sem_t *s);
+int semSignal (sem_t *s);
+int semDestroy (sem_t *s);
 
 void SAVE_REGS(void);
 void RESTORE_REGS(void);

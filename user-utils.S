@@ -174,6 +174,60 @@ ENTRY(create_thread)
 	js    nok
 	popl  %ebp
 	ret
+	
+/* sem_t *semCreate (int initial_value) */
+ENTRY(semCreate)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $41, %eax
+	movl  8(%ebp), %ebx
+	call  syscall_sysenter
+	popl  %ebx
+	popl  %ebp
+	ret
+
+/* int semWait(sem_t *s) */
+ENTRY(semWait)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $42, %eax
+	movl  8(%ebp), %ebx
+	call  syscall_sysenter
+	popl  %ebx
+	test  %eax, %eax
+	js    nok
+	popl  %ebp
+	ret
+	
+/* int semSignal(sem_t *s) */
+ENTRY(semSignal)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $43, %eax
+	movl  8(%ebp), %ebx
+	call  syscall_sysenter
+	popl  %ebx
+	test  %eax, %eax
+	js    nok
+	popl  %ebp
+	ret
+	
+/* int semDestroy(sem_t *s) */
+ENTRY(semDestroy)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $44, %eax
+	movl  8(%ebp), %ebx
+	call  syscall_sysenter
+	popl  %ebx
+	test  %eax, %eax
+	js    nok
+	popl  %ebp
+	ret
 
 ENTRY(SAVE_REGS)
       pushl %eax

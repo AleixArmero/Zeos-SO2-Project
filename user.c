@@ -1,15 +1,21 @@
 #include <libc.h>
 
 char buff[24];
+int value = 0;
 
-void *test (void *value)
+void *test (void *s)
 {
-	write(1, "\nThread param= ",16);
-	write(1, (char *)value, strlen((char *)value));
-	write(1, "\n", 1);
+	write(1, "\nThread waiting...\n",19);
+	
+	int e = semWait((sem_t *)s);
+	if (e < 0) perror();
+	value++;
+	e = semSignal((sem_t *)s);
+	if (e < 0) perror();
+
+	write(1, "\nThread pass!\n", 14);
 	
 	exit();
-	write(1, "Not to be written",  17);
 	return 0;
 }
 
@@ -19,26 +25,23 @@ int __attribute__ ((__section__(".text.main")))
     /* Next line, tries to move value 0 to CR3 register. This register is a privileged one, and so it will raise an exception */
      /* __asm__ __volatile__ ("mov %0, %%cr3"::"r" (0) ); */
 
-  write (1, "\nFork threat test...\n", 21);
+  write (1, "\nSemaphore test...\n", 19);
+  
+  sem_t *s = semCreate(0);
   
   int pid = fork ();
-  int tid = 0;
-  if (pid > 0)
-  	write (1, "Parent ok!\n", 11);
+  if (pid > 0) {
+  	while (gettime() < 1000);
+  	exit();
+  }
   else if (pid == 0) {
-  	write (1, "Child ok!\n", 10);
-  	char value2[] = "thread 1\n";
-  	char value3[] = "thread 2\n";
-  	create_thread ((void *) test, 2, (void *) value2);
-  	tid = create_thread ((void *) test, 2, (void *) value3);
+  	create_thread ((void *) test, 1, (void *) s);
+  	create_thread ((void *) test, 1, (void *) s);
   }
   else
   	write (1, "Fork error!\n", 12);
   
-  itoa (tid, buff);
-  write (1, "\nThread TID =", 14);
-  write (1, buff, strlen(buff));
-  write (1, "\n", 1);    
+  write (1, "\nTest finished!\n", 16);
   
   while(1) {}
 }

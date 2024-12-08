@@ -34,6 +34,10 @@ struct list_head freequeue;
 // Ready queue
 struct list_head readyqueue;
 
+// Available semaphores list
+int available_sems[MAX_SEM];
+struct sem_t sems[MAX_SEM];
+
 void init_stats(struct stats *s)
 {
 	s->user_ticks = 0;
@@ -203,6 +207,7 @@ void init_task1(void)
   c->state=ST_RUN;
 
   INIT_LIST_HEAD(&c->threads);
+  INIT_LIST_HEAD(&c->sems);
   
   list_add_tail (&c->anchor, &c->threads);
 
@@ -222,6 +227,12 @@ void init_task1(void)
   setMSR(0x175, 0, (unsigned long)&(uc->stack[KERNEL_STACK_SIZE]));
 
   set_cr3(c->dir_pages_baseAddr);
+}
+
+void init_sems()
+{
+  for (int i = 0; i < MAX_SEM; ++i)
+    available_sems[i] = 0;
 }
 
 void init_freequeue()

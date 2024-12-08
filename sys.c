@@ -14,6 +14,9 @@
 #define LECTURA 0
 #define ESCRIPTURA 1
 
+extern int available_sems[MAX_SEM];
+extern struct sem_t sems[MAX_SEM];
+
 extern Byte x, y;
 extern Byte color;
 
@@ -22,6 +25,7 @@ extern struct list_head blocked;
 int waitKey = 0;
 
 void * get_ebp();
+int sys_semDestroy (struct sem_t *s);
 
 int check_fd(int fd, int permissions)
 {
@@ -139,6 +143,7 @@ int sys_fork(void)
   uchild->task.TID=++global_TID;
   uchild->task.state=ST_READY;
   INIT_LIST_HEAD(&uchild->task.threads);
+  INIT_LIST_HEAD(&uchild->task.sems);
   
   /* Add thread to thread list */
   list_add_tail (&uchild->task.anchor, &uchild->task.threads);
@@ -215,17 +220,16 @@ void sys_exit()
   // Remove user stack pages
   int stack_size = current()->user_stack_size;
   int stack_page = current()->user_stack_page;
-  for (i=0; i<stack_size; i++)
+  for (i=stack_page; i<stack_page+stack_size; i++)
   {
-    free_frame(get_frame(process_PT, stack_page+i));
-    del_ss_pag(process_PT, stack_page+i);
+    free_frame(get_frame(process_PT, i));
+    del_ss_pag(process_PT, i);
   }
   
   // Remove from thread list
   list_del (&current()->anchor);
   
   // Find another thread on the list
-  
   if (list_empty(&current()->threads)) {
     // We want to kill the last thread of the process
     // Deallocate all the propietary physical pages
@@ -237,6 +241,13 @@ void sys_exit()
   }
   else {
     set_cr3(get_DIR(current()));
+  }
+  
+  /* Destroy semaphores */
+  struct list_head *pos;
+  list_for_each(pos, &current()->sems) {
+  	struct sem_t *s = list_entry(pos, struct sem_t, anchor);
+  	sys_semDestroy(s);
   }
   
   /* Free task_struct */
@@ -282,14 +293,14 @@ int sys_getKey (char *b, int timeout)
     // comprobamos que la dirección dónde se guarda la tecla corresponde
     // al espacio de datos del usuario
     if (!access_ok(VERIFY_WRITE, b, sizeof(char)))
-        return -1; // falta decidir el errno
+        return -EINVAL;
     
     if (!buff_empty() && waitKey < buff_size())
         *b = buff_head();
     else {
         // si el buffer circular está vacío o no hay suficientes teclas...
         if (timeout <= 0)
-            return -1; // falta decidir el errno
+            return -EINVAL;
         // esperamos una nueva tecla
         waitKey++;
         current()->p_stats.remaining_ticks = timeout;
@@ -299,7 +310,7 @@ int sys_getKey (char *b, int timeout)
         waitKey--;
         // comprobamos si hay tecla
         if (buff_empty ())
-           return -1;  // falta decidir el errno
+           return -EAGAIN;
         // leemos el buffer circular
         *b = buff_head();
     }
@@ -309,7 +320,7 @@ int sys_getKey (char *b, int timeout)
 
 int sys_gotoXY(int new_x, int new_y) {
   if (x < 0 || y < 0 || x > 79 || y > 24)
-    return -1; //Falta el errno
+    return -EINVAL;
 
   x = (Byte) new_x;
   y = (Byte) new_y;
@@ -323,7 +334,7 @@ int sys_gotoXY(int new_x, int new_y) {
 int sys_changeColor(int fg, int bg) {
   
   if (fg < 0 || bg < 0 || fg > 15 || bg > 7)
-    return -1; //Falta el errno
+    return -EINVAL;
 
   //Word *screen = (Word *)0xb8000;
 
@@ -347,7 +358,7 @@ int sys_changeColor(int fg, int bg) {
 int sys_clrscr(char* b) {
   // comprobamos si toda la matriz se encuentra en el espacio del usuario
   if (b != NULL && !access_ok(VERIFY_READ, b, sizeof(char[25][80][2])))
-     return -1; // falta poner el errno
+     return -EINVAL;
      
   Word *screen = (Word *)0xb8000;
   
@@ -384,7 +395,12 @@ int sys_clrscr(char* b) {
 int sys_create_thread (void * (*function)(void *param), int N, void *param)
 {
 
-  if (N < 1 || N > 1024 - PAG_LOG_INIT_DATA+NUM_PAG_DATA) return -EINVAL;
+  if (N < 1 || N > 1024 - PAG_LOG_INIT_DATA+NUM_PAG_DATA)
+      return -EINVAL;
+  
+  // Param can be a pointer to a semaphore
+  if (!access_ok(VERIFY_READ, function, sizeof(void *)))
+      return -EINVAL;
 
   /*Mirem que ala funció es trobi en la zona de codi, ja que es posible que ens donin una direcció a una funció en la zona
   de kernel (crec, no estic massa segur)*/
@@ -461,6 +477,7 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
   uchild->task.TID=++global_TID;
   uchild->task.state=ST_READY;
   uchild->task.user_stack_page = pag-N;
+  INIT_LIST_HEAD(&uchild->task.sems);
 
   pointing_dir[current()->dir]++;
   
@@ -468,7 +485,7 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
   list_add_tail (&uchild->task.anchor, &current()->threads);
 
   /* Set up thread user stack throught parent */
-  unsigned *top = (unsigned *)(((uchild->task.user_stack_page+uchild->task.user_stack_size-1)<<12)-8);
+  unsigned *top = (unsigned *)(((uchild->task.user_stack_page+uchild->task.user_stack_size)<<12)-8);
   *top = 0;
   *(top+1) = (unsigned) param;
   
@@ -491,4 +508,76 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
   list_add_tail(&(uchild->task.list), &readyqueue);
   
   return uchild->task.TID;
+}
+
+struct sem_t *sys_semCreate (int initial_value)
+{
+  if (initial_value < 0)
+    return NULL;
+    
+  int i = 0;
+  int found = 0;
+  
+  /* Trying to find an available semaphore */
+  while (!found && i < MAX_SEM) {
+    if (available_sems[i] == 0) {
+      available_sems[i] = 1;
+      found = 1;
+    }
+    i++;
+  }
+  if (!found)
+    return NULL;
+
+  /* Available semaphore found */
+  struct sem_t *s = &sems[i-1];
+  s->count = initial_value;
+  s->parent = current();
+  list_add_tail(&s->anchor, &current()->sems);
+  INIT_LIST_HEAD(&s->blocked);
+  return s;
+}
+
+int sys_semWait (struct sem_t *s) {
+  int position = ((int) (s - sems)) / sizeof(struct sem_t);
+  if (position < 0 || position >= MAX_SEM || !available_sems[position])
+    return -EINVAL;
+    
+  s->count--;
+  if (s->count < 0) {
+    update_process_state_rr(current(), &s->blocked);
+    sched_next_rr();
+  }
+  
+  return 0;
+}
+
+int sys_semSignal (struct sem_t *s) {
+  int position = ((int) (s - sems)) / sizeof(struct sem_t);
+  if (position < 0 || position >= MAX_SEM || !available_sems[position])
+    return -EINVAL;
+    
+  s->count++;
+  if (s->count >= 0 && !list_empty(&s->blocked)) {
+    struct list_head *l = list_first (&s->blocked);
+    struct task_struct *t = list_head_to_task_struct(l);
+    update_process_state_rr(t,&readyqueue);
+  }
+  
+  return 0;
+}
+
+int sys_semDestroy (struct sem_t *s) {
+  int position = ((int) (s - sems)) / sizeof(struct sem_t);
+  if (position < 0 || position >= MAX_SEM || !available_sems[position] || s->parent != current())
+    return -EINVAL;
+  
+  struct list_head *pos, *n;
+  list_for_each_safe (pos, n, &s->blocked) {
+    struct task_struct *t = list_head_to_task_struct (pos);
+    update_process_state_rr(t,&readyqueue);
+  }
+  available_sems[position] = 0;
+  
+  return 0;
 }
