@@ -537,6 +537,7 @@ int sys_semWait (struct sem_t *s) {
   if (s->count < 0) {
     update_process_state_rr(current(), &s->blocked);
     sched_next_rr();
+    return current()->sem_return;
   }
   
   return 0;
@@ -551,6 +552,7 @@ int sys_semSignal (struct sem_t *s) {
   if (s->count >= 0 && !list_empty(&s->blocked)) {
     struct list_head *l = list_first (&s->blocked);
     struct task_struct *t = list_head_to_task_struct(l);
+    t->sem_return = 0;
     update_process_state_rr(t,&readyqueue);
   }
   
@@ -565,6 +567,7 @@ int sys_semDestroy (struct sem_t *s) {
   struct list_head *pos, *n;
   list_for_each_safe (pos, n, &s->blocked) {
     struct task_struct *t = list_head_to_task_struct (pos);
+    t->sem_return = 1;
     update_process_state_rr(t,&readyqueue);
   }
   list_del(&s->anchor);

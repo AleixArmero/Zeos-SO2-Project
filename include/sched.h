@@ -39,6 +39,7 @@ struct task_struct {
   struct list_head anchor;	/* Anchor to thread list */
   struct list_head threads;     /* Siblings of this thread */
   struct list_head sems;	/* Semaphores created by this process */
+  int sem_return;
 };
 
 union task_union {
