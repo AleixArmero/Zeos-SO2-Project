@@ -229,6 +229,32 @@ ENTRY(semDestroy)
 	popl  %ebp
 	ret
 
+/* char* memRegGet(int num_pages) */
+ENTRY(memRegGet)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $45, %eax
+	movl  8(%ebp), %ebx
+	call  syscall_sysenter
+	popl  %ebx
+	popl  %ebp
+	ret
+
+/* int memRegDel(char* m) */
+ENTRY(memRegDel)
+	pushl %ebp
+	movl  %esp, %ebp
+	pushl %ebx
+	movl  $46, %eax
+	movl  8(%ebp), %ebx
+	call  syscall_sysenter
+	popl  %ebx
+	test  %eax, %eax
+	js    nok
+	popl  %ebp
+	ret
+
 ENTRY(SAVE_REGS)
       pushl %eax
       movl %eax, REGS    //SAVE EAX

@@ -38,6 +38,9 @@ struct list_head readyqueue;
 struct list_head freesems;
 struct sem_t sems[MAX_SEM];
 
+struct list_head freedinamic;
+struct mem_chunk dinamic_vars[MAX_DIN];
+
 void init_stats(struct stats *s)
 {
 	s->user_ticks = 0;
@@ -208,6 +211,7 @@ void init_task1(void)
 
   INIT_LIST_HEAD(&c->threads);
   INIT_LIST_HEAD(&c->sems);
+  INIT_LIST_HEAD(&c->dinamic_mem);
   
   list_add_tail (&c->anchor, &c->threads);
 
@@ -235,6 +239,14 @@ void init_sems()
   for (int i = 0; i < MAX_SEM; ++i) {
     sems[i].parent=NULL;
     list_add_tail(&sems[i].anchor, &freesems);
+  }
+}
+
+void init_dinamic()
+{
+  INIT_LIST_HEAD(&freedinamic);
+  for (int i = 0; i < MAX_DIN; ++i) {
+    list_add_tail(&dinamic_vars[i].anchor, &freedinamic);
   }
 }
 

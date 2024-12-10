@@ -46,6 +46,9 @@ int semWait (sem_t *s);
 int semSignal (sem_t *s);
 int semDestroy (sem_t *s);
 
+char* memRegGet(int num_pages);
+int memRegDel(char* m);
+
 void SAVE_REGS(void);
 void RESTORE_REGS(void);
 

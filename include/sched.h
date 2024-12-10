@@ -14,12 +14,20 @@
 #define KERNEL_STACK_SIZE	1024
 
 #define MAX_SEM 10
+#define MAX_DIN 2
 
 struct sem_t {
   int count;
   struct list_head blocked;
   struct list_head anchor;
   struct task_struct *parent;
+};
+
+struct mem_chunk {
+  unsigned int mem_page;
+  unsigned int num_pages;
+  unsigned int num_pointing;
+  struct list_head anchor;
 };
 
 enum state_t { ST_RUN, ST_READY, ST_BLOCKED };
@@ -39,6 +47,7 @@ struct task_struct {
   struct list_head anchor;	/* Anchor to thread list */
   struct list_head threads;     /* Siblings of this thread */
   struct list_head sems;	/* Semaphores created by this process */
+  struct list_head dinamic_mem;
   int sem_return;
 };
 
@@ -67,6 +76,8 @@ void init_idle(void);
 void init_sched(void);
 
 void init_sems(void);
+
+void init_dinamic(void);
 
 void schedule(void);
 

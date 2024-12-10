@@ -44,8 +44,10 @@ ENTRY (sys_call_table)
 	.long sys_clrscr        //39
 	.long sys_create_thread //40
 	.long sys_semCreate	    //41
-	.long sys_semWait	      //42
+	.long sys_semWait	    //42
 	.long sys_semSignal	    //43
-	.long sys_semDestroy	  //44
+	.long sys_semDestroy	//44
+	.long sys_memRegGet	    //45
+	.long sys_memRegDel	    //46
 .globl MAX_SYSCALL
 MAX_SYSCALL = (. - sys_call_table)/4

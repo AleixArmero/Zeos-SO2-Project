@@ -15,6 +15,7 @@
 #define ESCRIPTURA 1
 
 extern struct list_head freesems;
+extern struct list_head freedinamic;
 extern struct sem_t sems[MAX_SEM];
 
 extern Byte x, y;
@@ -66,6 +67,20 @@ int sys_fork(void)
 {
   struct list_head *lhcurrent = NULL;
   union task_union *uchild;
+
+  int count = 0;
+
+  struct list_head *pos, *n;
+
+  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+    count++;
+  }
+
+  list_for_each_safe(pos, n, &freedinamic) {
+    count--;
+  }
+
+  if (count > 0) return -ENOMEM;
   
   /* Any free task_struct? */
   if (list_empty(&freequeue)) return -ENOMEM;
@@ -144,6 +159,24 @@ int sys_fork(void)
   uchild->task.state=ST_READY;
   INIT_LIST_HEAD(&uchild->task.threads);
   INIT_LIST_HEAD(&uchild->task.sems);
+  INIT_LIST_HEAD(&uchild->task.dinamic_mem);
+  
+  /*Copy the dynamic variables*/
+
+  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+
+  	struct mem_chunk *m = list_entry(pos, struct mem_chunk, anchor);
+
+  	struct list_head *l = list_first(&freedinamic);
+    list_del(l);
+
+    struct mem_chunk *m2 = list_entry(l, struct mem_chunk, anchor);
+    m2->mem_page = m->mem_page;
+    m2->num_pages = m->num_pages;
+    m2->num_pointing = 1;
+
+    list_add_tail(&m2->anchor, &uchild->task.dinamic_mem);
+  }
   
   /* Add thread to thread list */
   list_add_tail (&uchild->task.anchor, &uchild->task.threads);
@@ -248,6 +281,17 @@ void sys_exit()
   list_for_each_safe(pos, n, &current()->sems) {
   	struct sem_t *s = list_entry(pos, struct sem_t, anchor);
   	sys_semDestroy(s);
+  }
+
+  /*Update the pointers to dinamic variables and eliminate dinamic variables if not pointed anymore*/
+
+  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+  	struct mem_chunk *m = list_entry(pos, struct mem_chunk, anchor);
+  	m->num_pointing--;
+    if (m->num_pointing < 1) {
+      list_del(pos);
+      list_add_tail(pos, &freedinamic);
+    }
   }
   
   /* Free task_struct */
@@ -402,9 +446,6 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
       !access_ok(VERIFY_WRITE, param, sizeof(void *)))
       return -EINVAL;
 
-  /*Mirem que ala funció es trobi en la zona de codi, ja que es posible que ens donin una direcció a una funció en la zona
-  de kernel (crec, no estic massa segur)*/
-
   struct list_head *lhcurrent = NULL;
   union task_union *uchild;
   
@@ -503,6 +544,14 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
   /* Set stats to 0 */
   init_stats(&(uchild->task.p_stats));
 
+  /*Update the pointers to dinamic variables*/
+  struct list_head *pos, *n;
+
+  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+  	struct mem_chunk *m = list_entry(pos, struct mem_chunk, anchor);
+  	m->num_pointing++;
+  }
+
   /* Queue child process into readyqueue */
   uchild->task.state=ST_READY;
   list_add_tail(&(uchild->task.list), &readyqueue);
@@ -575,4 +624,137 @@ int sys_semDestroy (struct sem_t *s) {
   list_add_tail(&s->anchor, &freesems);
  
   return 0;
+}
+
+unsigned int check_available_space(int numPages) {
+
+  page_table_entry *process_PT = get_PT(current());
+  int found = 0;
+  int pag = PAG_LOG_INIT_DATA+NUM_PAG_DATA-1;
+
+  while (pag < 1024 && !found) {
+
+    pag++;
+    int available = 0;
+
+    while (available < numPages && pag+numPages<1024) 
+    {
+      if (!is_assigned(process_PT, pag))
+        available++;
+
+      else
+        available=0;
+
+      pag++;
+
+    }
+
+    if (available == numPages)
+      found = 1;
+  }
+
+  if (!found) return 0;
+  return pag-numPages;
+
+}
+
+int allocate_space(unsigned int pag, int numPages) {
+
+  page_table_entry *process_PT = get_PT(current());
+
+  for (int i = pag; i < pag+numPages; i++) {
+
+    int new_ph_pag=alloc_frame();
+      
+    if (new_ph_pag!=-1) { /* One page allocated */
+      
+      set_ss_pag(process_PT, i, new_ph_pag);
+
+    }
+
+    else {/* No more free pages left. Deallocate everything */
+      
+      /* Deallocate allocated pages. */
+      for (int j = pag; j < i; j++) {
+
+        free_frame(get_frame(process_PT, j));
+        del_ss_pag(process_PT, j);
+
+      }
+
+      /* Return error */
+      return -EAGAIN; 
+    }
+
+  }
+
+  return 1;
+
+}
+
+int deallocate_space(unsigned int pag, int numPages) {
+
+  page_table_entry *process_PT = get_PT(current());
+
+  for (int i = pag; i < pag+numPages; i++) {
+    free_frame(get_frame(process_PT, i));
+    del_ss_pag(process_PT, i);
+  }
+
+  /*Hem de fer un flush de TLB per no accedir incorrectament a les pagines que teniem assignades anteriorment*/
+  set_cr3(get_DIR(current())); 
+  return 1;
+}
+
+char* sys_memRegGet(int numPages) {
+
+  if (numPages < 1 || numPages > 1024 - PAG_LOG_INIT_DATA+NUM_PAG_DATA)
+    return NULL;
+
+  if (list_empty(&freedinamic)) return NULL;
+
+  struct list_head *l = list_first(&freedinamic);
+  struct mem_chunk *s = list_entry(l, struct mem_chunk, anchor);
+  list_del(l);
+  
+  unsigned int pag = check_available_space(numPages);
+
+  if (pag && allocate_space(pag, numPages) > -1) {
+
+    s->mem_page = pag;
+    s->num_pages = numPages;
+    s->num_pointing = 1;
+    list_add_tail(&s->anchor, &current()->dinamic_mem);
+    return (char *) (pag << 12);
+
+  }
+
+  //If we do not have space we return the dinamic variable to the list of free variables
+
+  list_add_tail(&s->anchor, &freedinamic);
+
+  return NULL;
+
+}
+
+int sys_memRegDel(char* m) {
+
+  struct list_head *pos, *n;
+  unsigned int page = ((unsigned int)m>>12);
+
+  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+  	struct mem_chunk *mem = list_entry(pos, struct mem_chunk, anchor);
+    if (mem->mem_page == page) {
+      deallocate_space(page, mem->num_pages);
+      list_del(pos);
+      mem->num_pointing--;
+      if (mem->num_pointing < 1) {
+        list_add_tail(pos, &freedinamic);
+      }
+      return 0;
+    }
+  }
+
+  return -EINVAL;
+
 }

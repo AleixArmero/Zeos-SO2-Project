@@ -93,6 +93,9 @@ int __attribute__((__section__(".text.main")))
   /* Initialize semaphores */
   init_sems();
 
+  /*Initialize dinamic memory*/
+  init_dinamic();
+
   /* Initialize idle task  data */
   init_idle();
   /* Initialize task 1 data */
