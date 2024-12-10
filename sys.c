@@ -399,7 +399,7 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
       return -EINVAL;
   
   if (!access_ok(VERIFY_READ, function, sizeof(void *)) ||
-      !access_ok(VERIFY_READ, param, sizeof(void *)))
+      !access_ok(VERIFY_WRITE, param, sizeof(void *)))
       return -EINVAL;
 
   /*Mirem que ala funció es trobi en la zona de codi, ja que es posible que ens donin una direcció a una funció en la zona
