@@ -290,6 +290,7 @@ void sys_exit()
   	m->num_pointing--;
     if (m->num_pointing < 1) {
       list_del(pos);
+      deallocate_space(m->mem_page, m->num_pages);
       list_add_tail(pos, &freedinamic);
     }
   }
@@ -745,11 +746,11 @@ int sys_memRegDel(char* m) {
   list_for_each_safe(pos, n, &current()->dinamic_mem) {
   	struct mem_chunk *mem = list_entry(pos, struct mem_chunk, anchor);
     if (mem->mem_page == page) {
-      deallocate_space(page, mem->num_pages);
       list_del(pos);
       mem->num_pointing--;
       if (mem->num_pointing < 1) {
         list_add_tail(pos, &freedinamic);
+        deallocate_space(page, mem->num_pages);
       }
       return 0;
     }
