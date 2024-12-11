@@ -289,8 +289,8 @@ void sys_exit()
   	struct mem_chunk *m = list_entry(pos, struct mem_chunk, anchor);
   	m->num_pointing--;
     if (m->num_pointing < 1) {
-      list_del(pos);
       deallocate_space(m->mem_page, m->num_pages);
+      list_del(pos);
       list_add_tail(pos, &freedinamic);
     }
   }
