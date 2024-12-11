@@ -27,6 +27,7 @@ int waitKey = 0;
 
 void * get_ebp();
 int sys_semDestroy (struct sem_t *s);
+int deallocate_space(unsigned int pag, int numPages);
 
 int check_fd(int fd, int permissions)
 {
@@ -284,7 +285,6 @@ void sys_exit()
   }
 
   /*Update the pointers to dinamic variables and eliminate dinamic variables if not pointed anymore*/
-
   list_for_each_safe(pos, n, &current()->dinamic_mem) {
   	struct mem_chunk *m = list_entry(pos, struct mem_chunk, anchor);
   	m->num_pointing--;
