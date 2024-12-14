@@ -17,6 +17,9 @@ Descriptor  *gdt = (Descriptor *) GDT_START;
 Register    gdtR;
 
 int pointing_dir[NR_TASKS];
+struct list_head threads_lists[NR_TASKS];
+struct list_head dinamic_lists[NR_TASKS];
+
 
 /* PAGING */
 /* Variables containing the page directory and the page table */
@@ -138,7 +141,7 @@ void init_mm()
   init_table_pages();
   init_frames();
   init_dir_pages();
-  allocate_DIR(&task[0].task);
+  allocate_tables(&task[0].task);
   set_cr3(get_DIR(&task[0].task));
   set_pe_flag();
 }

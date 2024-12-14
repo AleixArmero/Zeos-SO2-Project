@@ -95,9 +95,7 @@ int sys_fork(void) {
   copy_data(current(), uchild, sizeof(union task_union));
   
   /* new pages dir */
-  allocate_DIR((struct task_struct*)uchild);
-  allocate_dinamic((struct task_struct*)uchild);
-  allocate_threads((struct task_struct*)uchild);
+  allocate_tables((struct task_struct*)uchild);
   
   /* Allocate pages for DATA+STACK */
   int new_ph_pag, pag, i;

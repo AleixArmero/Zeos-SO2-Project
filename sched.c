@@ -28,6 +28,9 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
 #endif
 
 extern struct list_head blocked;
+extern struct list_head threads_lists[NR_TASKS];
+extern struct list_head dinamic_lists[NR_TASKS];
+
 
 // Free task structs
 struct list_head freequeue;
@@ -40,34 +43,6 @@ struct sem_t sems[MAX_SEM];
 
 struct list_head freedinamic;
 struct mem_chunk dinamic_vars[MAX_DIN];
-
-struct list_head threads_lists[NR_TASKS];
-struct list_head dinamic_lists[NR_TASKS];
-
-
-int allocate_threads(struct task_struct *t) {
-	int pos;
-
-	pos = ((int)t-(int)task)/sizeof(union task_union);
-
-  INIT_LIST_HEAD(&threads_lists[pos]);
-
-	t->threads = &threads_lists[pos];
-
-	return 1;
-}
-
-int allocate_dinamic(struct task_struct *t) {
-	int pos;
-
-	pos = ((int)t-(int)task)/sizeof(union task_union);
-
-  INIT_LIST_HEAD(&dinamic_lists[pos]);
-
-	t->dinamic_mem = &dinamic_lists[pos];
-
-	return 1;
-}
 
 void init_stats(struct stats *s)
 {
@@ -93,14 +68,21 @@ page_table_entry * get_PT (struct task_struct *t)
 }
 
 
-int allocate_DIR(struct task_struct *t) 
+int allocate_tables(struct task_struct *t) 
 {
 
   for (int i = 0; i < NR_TASKS; i++) {
     if (pointing_dir[i] < 1) {
+      // Allocate DIR
       t->dir_pages_baseAddr = (page_table_entry*) &dir_pages[i];
       pointing_dir[i] = 1;
       t->dir = i;
+      // Allocate threat siblings list
+      INIT_LIST_HEAD(&threads_lists[i]);
+      t->threads = &threads_lists[i];
+      // Allocate dynamic memory list
+      INIT_LIST_HEAD(&dinamic_lists[i]);
+      t->dinamic_mem = &dinamic_lists[i];
       return 1;
     }
   }
@@ -210,9 +192,9 @@ void init_idle (void)
   c->total_quantum=DEFAULT_QUANTUM;
 
   init_stats(&c->p_stats);
-
-  allocate_DIR(c);
-
+  
+  allocate_tables(c);
+  
   uc->stack[KERNEL_STACK_SIZE-1]=(unsigned long)&cpu_idle; /* Return address */
   uc->stack[KERNEL_STACK_SIZE-2]=0; /* register ebp */
 
@@ -238,17 +220,14 @@ void init_task1(void)
   c->state=ST_RUN;
 
   INIT_LIST_HEAD(&c->sems);
-
-  allocate_dinamic(c);
-  allocate_threads(c);
+  
+  allocate_tables(c);
   
   list_add_tail (&c->anchor, c->threads);
 
   remaining_quantum=c->total_quantum;
 
   init_stats(&c->p_stats);
-
-  allocate_DIR(c);
 
   set_user_pages(c);
   

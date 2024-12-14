@@ -1,61 +1,53 @@
-# 0 "sys_call_table.S"
-# 0 "<built-in>"
-# 0 "<command-line>"
-# 1 "/usr/include/stdc-predef.h" 1 3 4
-# 0 "<command-line>" 2
-# 1 "sys_call_table.S"
-# 1 "include/asm.h" 1
-# 2 "sys_call_table.S" 2
-# 1 "include/segment.h" 1
-# 3 "sys_call_table.S" 2
+#include <asm.h>
+#include <segment.h>
 
-.globl sys_call_table; .type sys_call_table, @function; .align 0; sys_call_table:
- .long sys_ni_syscall
- .long sys_exit
- .long sys_fork
- .long sys_ni_syscall
- .long sys_write
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_gettime
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_yield
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_getpid
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_ni_syscall
- .long sys_get_stats
- .long sys_getKey
- .long sys_gotoXY
- .long sys_changeColor
- .long sys_clrscr
- .long sys_create_thread
- .long sys_semCreate
- .long sys_semWait
- .long sys_semSignal
- .long sys_semDestroy
- .long sys_memRegGet
- .long sys_memRegDel
+ENTRY (sys_call_table)
+	.long sys_ni_syscall	//0
+	.long sys_exit		    //1
+	.long sys_fork		    //2
+	.long sys_ni_syscall	//3
+	.long sys_write		    //4
+	.long sys_ni_syscall	//5
+	.long sys_ni_syscall	//6
+	.long sys_ni_syscall	//7
+	.long sys_ni_syscall	//8
+	.long sys_ni_syscall	//9
+	.long sys_gettime	    //10
+	.long sys_ni_syscall	//11
+	.long sys_ni_syscall	//12
+	.long sys_yield		    //13
+	.long sys_ni_syscall	//14
+	.long sys_ni_syscall	//15
+	.long sys_ni_syscall	//16
+	.long sys_ni_syscall	//17
+	.long sys_ni_syscall	//18
+	.long sys_ni_syscall	//19
+	.long sys_getpid	    //20	
+	.long sys_ni_syscall	//21
+	.long sys_ni_syscall	//22
+	.long sys_ni_syscall	//23
+	.long sys_ni_syscall	//24
+	.long sys_ni_syscall	//25
+	.long sys_ni_syscall	//26
+	.long sys_ni_syscall	//27
+	.long sys_ni_syscall	//28
+	.long sys_ni_syscall	//29
+	.long sys_ni_syscall	//30
+	.long sys_ni_syscall	//31
+	.long sys_ni_syscall	//32
+	.long sys_ni_syscall	//33
+	.long sys_ni_syscall	//34
+	.long sys_get_stats	    //35
+	.long sys_getKey        //36
+	.long sys_gotoXY        //37
+	.long sys_changeColor   //38
+	.long sys_clrscr        //39
+	.long sys_create_thread //40
+	.long sys_semCreate	    //41
+	.long sys_semWait	    //42
+	.long sys_semSignal	    //43
+	.long sys_semDestroy	//44
+	.long sys_memRegGet	    //45
+	.long sys_memRegDel	    //46
 .globl MAX_SYSCALL
 MAX_SYSCALL = (. - sys_call_table)/4
