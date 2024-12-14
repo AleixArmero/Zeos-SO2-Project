@@ -41,6 +41,34 @@ struct sem_t sems[MAX_SEM];
 struct list_head freedinamic;
 struct mem_chunk dinamic_vars[MAX_DIN];
 
+struct list_head threads_lists[NR_TASKS];
+struct list_head dinamic_lists[NR_TASKS];
+
+
+int allocate_threads(struct task_struct *t) {
+	int pos;
+
+	pos = ((int)t-(int)task)/sizeof(union task_union);
+
+  INIT_LIST_HEAD(&threads_lists[pos]);
+
+	t->threads = &threads_lists[pos];
+
+	return 1;
+}
+
+int allocate_dinamic(struct task_struct *t) {
+	int pos;
+
+	pos = ((int)t-(int)task)/sizeof(union task_union);
+
+  INIT_LIST_HEAD(&dinamic_lists[pos]);
+
+	t->dinamic_mem = &dinamic_lists[pos];
+
+	return 1;
+}
+
 void init_stats(struct stats *s)
 {
 	s->user_ticks = 0;
@@ -209,11 +237,12 @@ void init_task1(void)
 
   c->state=ST_RUN;
 
-  INIT_LIST_HEAD(&c->threads);
   INIT_LIST_HEAD(&c->sems);
-  INIT_LIST_HEAD(&c->dinamic_mem);
+
+  allocate_dinamic(c);
+  allocate_threads(c);
   
-  list_add_tail (&c->anchor, &c->threads);
+  list_add_tail (&c->anchor, c->threads);
 
   remaining_quantum=c->total_quantum;
 

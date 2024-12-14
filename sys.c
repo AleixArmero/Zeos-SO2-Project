@@ -64,8 +64,7 @@ int ret_from_fork()
   return 0;
 }
 
-int sys_fork(void)
-{
+int sys_fork(void) {
   struct list_head *lhcurrent = NULL;
   union task_union *uchild;
 
@@ -73,7 +72,7 @@ int sys_fork(void)
 
   struct list_head *pos, *n;
 
-  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+  list_for_each_safe(pos, n, current()->dinamic_mem) {
     count++;
   }
 
@@ -97,6 +96,8 @@ int sys_fork(void)
   
   /* new pages dir */
   allocate_DIR((struct task_struct*)uchild);
+  allocate_dinamic((struct task_struct*)uchild);
+  allocate_threads((struct task_struct*)uchild);
   
   /* Allocate pages for DATA+STACK */
   int new_ph_pag, pag, i;
@@ -158,13 +159,11 @@ int sys_fork(void)
   uchild->task.PID=++global_PID;
   uchild->task.TID=++global_TID;
   uchild->task.state=ST_READY;
-  INIT_LIST_HEAD(&uchild->task.threads);
   INIT_LIST_HEAD(&uchild->task.sems);
-  INIT_LIST_HEAD(&uchild->task.dinamic_mem);
   
   /*Copy the dynamic variables*/
 
-  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+  list_for_each_safe(pos, n, current()->dinamic_mem) {
 
   	struct mem_chunk *m = list_entry(pos, struct mem_chunk, anchor);
 
@@ -176,11 +175,11 @@ int sys_fork(void)
     m2->num_pages = m->num_pages;
     m2->num_pointing = 1;
 
-    list_add_tail(&m2->anchor, &uchild->task.dinamic_mem);
+    list_add_tail(&m2->anchor, uchild->task.dinamic_mem);
   }
   
   /* Add thread to thread list */
-  list_add_tail (&uchild->task.anchor, &uchild->task.threads);
+  list_add_tail (&uchild->task.anchor, uchild->task.threads);
 
   int register_ebp;		/* frame pointer */
   /* Map Parent's ebp to child's stack */
@@ -243,8 +242,7 @@ int sys_gettime()
   return zeos_ticks;
 }
 
-void sys_exit()
-{  
+void sys_exit() {  
   int i;
 
   page_table_entry *process_PT = get_PT(current());
@@ -264,7 +262,7 @@ void sys_exit()
   list_del (&current()->anchor);
   
   // Find another thread on the list
-  if (list_empty(&current()->threads)) {
+  if (list_empty(current()->threads)) {
     // We want to kill the last thread of the process
     // Deallocate all the propietary physical pages
     for (i=0; i<NUM_PAG_DATA; i++)
@@ -285,7 +283,7 @@ void sys_exit()
   }
 
   /*Update the pointers to dinamic variables and eliminate dinamic variables if not pointed anymore*/
-  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+  list_for_each_safe(pos, n, current()->dinamic_mem) {
   	struct mem_chunk *m = list_entry(pos, struct mem_chunk, anchor);
   	m->num_pointing--;
     if (m->num_pointing < 1) {
@@ -437,8 +435,7 @@ int sys_clrscr(char* b) {
 
 }
 
-int sys_create_thread (void * (*function)(void *param), int N, void *param)
-{
+int sys_create_thread (void * (*function)(void *param), int N, void *param) {
 
   if (N < 1 || N > 1024 - PAG_LOG_INIT_DATA+NUM_PAG_DATA)
       return -EINVAL;
@@ -524,7 +521,7 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
   pointing_dir[current()->dir]++;
   
   /* Add thread to thread list */
-  list_add_tail (&uchild->task.anchor, &current()->threads);
+  list_add_tail (&uchild->task.anchor, current()->threads);
 
   /* Set up thread user stack throught parent */
   unsigned *top = (unsigned *)(((uchild->task.user_stack_page+uchild->task.user_stack_size)<<12)-8);
@@ -548,7 +545,7 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param)
   /*Update the pointers to dinamic variables*/
   struct list_head *pos, *n;
 
-  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+  list_for_each_safe(pos, n, current()->dinamic_mem) {
   	struct mem_chunk *m = list_entry(pos, struct mem_chunk, anchor);
   	m->num_pointing++;
   }
@@ -725,7 +722,8 @@ char* sys_memRegGet(int numPages) {
     s->mem_page = pag;
     s->num_pages = numPages;
     s->num_pointing = 1;
-    list_add_tail(&s->anchor, &current()->dinamic_mem);
+    list_add_tail(&s->anchor, current()->dinamic_mem);
+
     return (char *) (pag << 12);
 
   }
@@ -743,15 +741,12 @@ int sys_memRegDel(char* m) {
   struct list_head *pos, *n;
   unsigned int page = ((unsigned int)m>>12);
 
-  list_for_each_safe(pos, n, &current()->dinamic_mem) {
+  list_for_each_safe(pos, n, current()->dinamic_mem) {
   	struct mem_chunk *mem = list_entry(pos, struct mem_chunk, anchor);
     if (mem->mem_page == page) {
       list_del(pos);
-      mem->num_pointing--;
-      if (mem->num_pointing < 1) {
-        list_add_tail(pos, &freedinamic);
-        deallocate_space(page, mem->num_pages);
-      }
+      list_add_tail(pos, &freedinamic);
+      deallocate_space(page, mem->num_pages);
       return 0;
     }
   }
