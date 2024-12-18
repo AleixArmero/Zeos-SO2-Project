@@ -1,16 +1,16 @@
 #include <libc.h>
 
-char buff[24];
-sem_t *s;
-char *md;
-int value = 0;
-
-int x, y;
-
-sem_t *sem_move;
-
-#define TARGET_FRAMERATE 5.0f
+#define TARGET_FRAMERATE 10000
 #define PLAYER_COLOR 0x5
+#define GROUND 0x0
+#define ENEMY_COLOR 0x5
+#define RESPONSE_DELAY 50
+
+sem_t *sem_move_agent, *sem_update_screen, *sem_screen_updated;
+int agent[4][2] = {{1, 23}, {5, 5}, {20, 10}, {75, 10}};
+int last_position[4][2];
+int new_key = 0;
+char key;
 
 char map[25][80][2] = {
 {{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},},
@@ -40,54 +40,119 @@ char map[25][80][2] = {
 {{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},},
 };
 
-void print_on_point(int pos_x, int pos_y, char *a) {
-	gotoXY(pos_x, pos_y);
-	write(1, a, 1);
+void *print_screen (void *s) {
+  
+  clrscr((char *)s);
+  
+  changeColor(PLAYER_COLOR, 0x0);
+  gotoXY(agent[0][0], agent[0][1]);
+  write(1, "P", 1);
+  
+  changeColor(ENEMY_COLOR, 0x0);
+  gotoXY(agent[1][0], agent[1][1]);
+  write(1, "E", 1);
+  gotoXY(agent[2][0], agent[2][1]);
+  write(1, "E", 1);
+  gotoXY(agent[3][0], agent[3][1]);
+  write(1, "E", 1);
+  
+  while(1) {  
+    semWait (sem_move_agent);
+    changeColor(GROUND, 0x0);
+    gotoXY(last_position[0][0], last_position[0][1]);
+    write(1, " ", 1);
+    gotoXY(last_position[1][0], last_position[1][1]);
+    write(1, " ", 1);
+    gotoXY(last_position[2][0], last_position[2][1]);
+    write(1, " ", 1);
+    gotoXY(last_position[3][0], last_position[3][1]);
+    write(1, " ", 1);
+    changeColor(PLAYER_COLOR, 0x0);
+    gotoXY(agent[0][0], agent[0][1]);
+    write(1, "P", 1);
+  
+    changeColor(ENEMY_COLOR, 0x0);
+    gotoXY(agent[1][0], agent[1][1]);
+    write(1, "E", 1);
+    gotoXY(agent[2][0], agent[2][1]);
+    write(1, "E", 1);
+    gotoXY(agent[3][0], agent[3][1]);
+    write(1, "E", 1);
+    semSignal (sem_move_agent);
+  }
 }
 
-void move_player(int new_x, int new_y) {
-	changeColor(0x0, 0x0);
-	print_on_point(x, y, " ");
-	changeColor(PLAYER_COLOR, 0x0);
-	print_on_point(new_x, new_y, "A");
-	x = new_x;
-	y = new_y;
-}
-
-void move(int wait_time) {
-	char key;
-	if (getKey(&key, wait_time) > -1) {
-
-		switch (key)
-		{
-		case 'w':
-			/* code */
-			if (map[y-1][x][0] != '#') {
-				move_player(x, y-1);
-			}
-			break;
+void *move_agent (int s[][2]) {
+  int px, py, ex, ey, targetx, targety;
+ 
+  while (1) {
+	  semWait (sem_move_agent);
+  
+		px = s[0][0];
+		py = s[0][1];
+	  
+	  if (new_key == 1) {
+	    switch (key)
+		  {
+		    case 'w':
+			    if (map[py-1][px][0] != '#')
+			  	  py--;
+		    	break;
 		
-		case 'a':
-			if (map[y][x-1][0] != '#') {
-				move_player(x-1, y);
-			}
-			break;
-
-		case 's':
-			if (map[y+1][x][0] != '#') {
-				move_player(x, y+1);
-			}
-			break;
-
-		case 'd':
-			if (map[y][x+1][0] != '#') {
-				move_player(x+1, y);
-			}
-			break;
-		}
+		    case 'a':
+			    if (map[py][px-1][0] != '#')
+				    px--;
+			    break;
+		    case 's':
+			    if (map[py+1][px][0] != '#')
+				    py++;
+			    break;
+        case 'd':
+			    if (map[py][px+1][0] != '#')
+				    px++;
+			    break;
+	    }
+	    s[0][0] = px;
+	    s[0][1] = py;
+	    new_key = 0;
+	  }
+	  else {
+	    for (int i = 1; i <= 3; i++) {
+	      ex = s[i][0];
+	      ey = s[i][1];
+	      
+	      if (ex - px > 0)
+	        targetx = ex-1;
+	      else
+	        targetx = ex+1;
+	        
+	      if (ey - py > 0)
+	        targety = ey-1;
+	      else
+	        targety = ey+1;
+	        
+	      if (map[ey][targetx][0] == '#' && map[targety][ex][0] != '#')
+	        targetx = ex;
+	      else if (map[ey][targetx][0] != '#' && map[targety][ex][0] == '#')
+	        targety = ey;
+	      
+	      s[i][0] = targetx;
+	      s[i][1] = targety;
+	    }
+	  }
+	  
+	  semSignal (sem_move_agent);
 	}
+}
 
-	return;
+void *key_read (void *s) {
+	
+	while (1) {
+	  if (getKey((char *)s, RESPONSE_DELAY) > -1) {
+	    new_key = 1;
+	    semSignal (sem_move_agent);
+	  }  
+	}
 }
 
 int __attribute__ ((__section__(".text.main")))
@@ -96,35 +161,23 @@ int __attribute__ ((__section__(".text.main")))
     /* Next line, tries to move value 0 to CR3 register. This register is a privileged one, and so it will raise an exception */
      /* __asm__ __volatile__ ("mov %0, %%cr3"::"r" (0) ); */
 
-
-  /*He limitat el nombre de variables dinamiques a 2 per poder fer probes fácilment*/
-
-  write(1, "MAP TEST\n", 9);
-
-  x = 1;
-  y = 23;
-
-  clrscr((char *)map);
-
-  float time_previous_frame, time_current_frame, time_per_frame;
-
-  time_per_frame = 1.f/TARGET_FRAMERATE;
-
-  time_previous_frame = gettime();
-
-  changeColor(0x5, 0x0);
-  gotoXY(x, y);
-  write(1, "A", 1);
+  int time_current_frame;
+  
+  sem_move_agent = semCreate(1);
+  sem_update_screen = semCreate(0);
+  sem_screen_updated = semCreate(0);
+  
+  create_thread (print_screen, 1, (void *) map);
+  create_thread (key_read, 1, (void *) &key);
+  create_thread ((void *) move_agent, 1, (void *) agent);  
 
   while(1) {
 
 	time_current_frame = gettime();
 
-	if (time_current_frame - time_previous_frame >= time_per_frame) {
-		int time_to_end = (time_current_frame - time_previous_frame) - time_per_frame;
-		move(time_to_end);
-		time_previous_frame = time_current_frame;
-	}
-	
+	if (time_current_frame % TARGET_FRAMERATE == 0)
+    semSignal (sem_move_agent);
+    
   }
+	
 }
