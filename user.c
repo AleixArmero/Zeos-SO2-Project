@@ -3,6 +3,10 @@
 #define PLAYER_COLOR 0x3
 #define GROUND 0x0
 #define ENEMY_COLOR 0x2
+#define WIN_COLOR 0x7
+#define BG_WIN 0x2
+#define BG_LOSE 0x4
+#define LOSE_COLOR 0x6
 #define RESPONSE_DELAY 50
 
 sem_t *sem_mutex, *sem_move_agent;
@@ -10,6 +14,7 @@ int agent[4][2] = {{1, 23}, {5, 5}, {20, 10}, {75, 10}};
 int last_position[4][2];
 int last_enemy = 0;
 char key;
+enum state {PLAY, WIN, LOSE} game_state = PLAY;
 
 char map[25][80][2] = {
 {{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},},
@@ -67,6 +72,17 @@ void *print_screen (void *s) {
       write(1, "P", 1);
     }
     
+    if (game_state == WIN) {
+      changeColor(WIN_COLOR, BG_WIN);
+      gotoXY (30,12);
+      write (1, "*************\n", 14);
+      gotoXY (30,13);
+      write (1, "* YOU WIN ! *\n", 14);
+      gotoXY (30,14);
+      write (1, "*************\n", 14);
+      exit();
+    }
+    
     if (last_position[1][0] != agent[1][0] || last_position[1][1] != agent[1][1]) {
       changeColor(GROUND, 0x0);
       gotoXY(last_position[1][0], last_position[1][1]);
@@ -92,6 +108,17 @@ void *print_screen (void *s) {
       changeColor(ENEMY_COLOR, 0x0);
       gotoXY(agent[3][0], agent[3][1]);
       write(1, "E", 1);
+    }
+    
+    if (game_state == LOSE) {
+      changeColor(LOSE_COLOR, BG_LOSE);
+      gotoXY (30,12);
+      write (1, "***************\n", 16);
+      gotoXY (30,13);
+      write (1, "* GAME OVER ! *\n", 16);
+      gotoXY (30,14);
+      write (1, "***************\n", 16);
+      exit();
     }
   
     semSignal (sem_mutex);
@@ -134,7 +161,13 @@ void *move_agent (int s[][2]) {
 	  }
 	  s[0][0] = px;
 	  s[0][1] = py;
-	    
+	  
+	  for (int j = 1; j <= 3; j++)
+	    if (s[j][0] == px && s[j][1] == py) {
+        game_state = LOSE;
+        break;
+      }
+	  
 	  int i = last_enemy+1;
 	  ex = s[i][0];
 	  ey = s[i][1];
@@ -160,6 +193,11 @@ void *move_agent (int s[][2]) {
 	      
     s[i][0] = targetx;
     s[i][1] = targety;
+    
+    if (map[py][px][0] == '[')
+	    game_state = WIN;
+    else if (targetx == px && targety == py)
+      game_state = LOSE;
 	 
 	  last_enemy = (last_enemy+1)%3;
 	
