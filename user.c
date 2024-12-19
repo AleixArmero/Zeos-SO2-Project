@@ -3,14 +3,14 @@
 #define PLAYER_COLOR 0x3
 #define GROUND 0x0
 #define ENEMY_COLOR 0x2
-#define WIN_COLOR 0x7
-#define BG_WIN 0x2
-#define BG_LOSE 0x4
-#define LOSE_COLOR 0x6
+#define WIN_COLOR 0xA
+#define BG_WIN 0x1
+#define BG_LOSE 0x1
+#define LOSE_COLOR 0xC
 #define RESPONSE_DELAY 50
 
 sem_t *sem_mutex, *sem_move_agent;
-int agent[4][2] = {{1, 23}, {5, 5}, {20, 10}, {75, 10}};
+int agent[4][2] = {{1, 23}, {5, 5}, {20, 23}, {75, 10}};
 int last_position[4][2];
 int last_enemy = 0;
 char key;
