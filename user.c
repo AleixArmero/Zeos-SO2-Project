@@ -83,32 +83,15 @@ void *print_screen (void *s) {
       exit();
     }
     
-    if (last_position[1][0] != agent[1][0] || last_position[1][1] != agent[1][1]) {
-      changeColor(GROUND, 0x0);
-      gotoXY(last_position[1][0], last_position[1][1]);
-      write(1, " ", 1);
-      changeColor(ENEMY_COLOR, 0x0);
-      gotoXY(agent[1][0], agent[1][1]);
-      write(1, "E", 1);
-    }
-    
-    if (last_position[2][0] != agent[2][0] || last_position[2][1] != agent[2][1]) {
-      changeColor(GROUND, 0x0);
-      gotoXY(last_position[2][0], last_position[2][1]);
-      write(1, " ", 1);
-      changeColor(ENEMY_COLOR, 0x0);
-      gotoXY(agent[2][0], agent[2][1]);
-      write(1, "E", 1);
-    }
-    
-    if (last_position[3][0] != agent[3][0] || last_position[3][1] != agent[3][1]) {
-      changeColor(GROUND, 0x0);
-      gotoXY(last_position[3][0], last_position[3][1]);
-      write(1, " ", 1);
-      changeColor(ENEMY_COLOR, 0x0);
-      gotoXY(agent[3][0], agent[3][1]);
-      write(1, "E", 1);
-    }
+    for (int i = 1; i <= 3; i++) 
+      if (last_position[i][0] != agent[i][0] || last_position[i][1] != agent[i][1]) {
+        changeColor(GROUND, 0x0);
+        gotoXY(last_position[i][0], last_position[i][1]);
+        write(1, " ", 1);
+        changeColor(ENEMY_COLOR, 0x0);
+        gotoXY(agent[i][0], agent[i][1]);
+        write(1, "E", 1);
+      }
     
     if (game_state == LOSE) {
       changeColor(LOSE_COLOR, BG_LOSE);
@@ -162,12 +145,6 @@ void *move_agent (int s[][2]) {
 	  s[0][0] = px;
 	  s[0][1] = py;
 	  
-	  for (int j = 1; j <= 3; j++)
-	    if (s[j][0] == px && s[j][1] == py) {
-        game_state = LOSE;
-        break;
-      }
-	  
 	  int i = last_enemy+1;
 	  ex = s[i][0];
 	  ey = s[i][1];
@@ -194,10 +171,13 @@ void *move_agent (int s[][2]) {
     s[i][0] = targetx;
     s[i][1] = targety;
     
-    if (map[py][px][0] == '[')
+    for (int j = 1; j <= 3; j++)
+	    if (s[i][0] == s[0][0] && s[i][1] == s[0][1]) {
+        game_state = LOSE;
+        break;
+    }
+    else if (map[s[0][1]][s[0][0]][0] == '[')
 	    game_state = WIN;
-    else if (targetx == px && targety == py)
-      game_state = LOSE;
 	 
 	  last_enemy = (last_enemy+1)%3;
 	
@@ -213,6 +193,18 @@ void *key_read (void *s) {
 	}
 }
 
+void *test (void *s)
+{
+  // nothing to do here
+  return s;
+}
+
+void __attribute__ ((__section__(".text.exit")))
+  exit_from_thread (void)
+{
+  exit();
+}
+
 int __attribute__ ((__section__(".text.main")))
   main(void)
 {
@@ -225,6 +217,10 @@ int __attribute__ ((__section__(".text.main")))
   create_thread (print_screen, 1, (void *) map);
   create_thread (key_read, 1, (void *) &key);
   create_thread ((void *) move_agent, 1, (void *) agent);  
+
+  // Threat to test return without exit
+  int v;
+  create_thread (test, 1, &v);
 
   while(1) {
   }

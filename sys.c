@@ -14,6 +14,8 @@
 #define LECTURA 0
 #define ESCRIPTURA 1
 
+extern void (*exit)(void);
+
 extern struct list_head freesems;
 extern struct list_head freedinamic;
 extern struct sem_t sems[MAX_SEM];
@@ -523,7 +525,7 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param) {
 
   /* Set up thread user stack throught parent */
   unsigned *top = (unsigned *)(((uchild->task.user_stack_page+uchild->task.user_stack_size)<<12)-8);
-  *top = 0;
+  *top = 0x107000;
   *(top+1) = (unsigned) param;
   
   // Set up the system stack
