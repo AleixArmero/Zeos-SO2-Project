@@ -1,4 +1,5 @@
 #include <libc.h>
+#include <slabs.h>
 
 #define PLAYER_COLOR 0x3
 #define GROUND 0x0
@@ -11,12 +12,10 @@
 #define ENEMY_DELAY 80
 
 sem_t *sem_update_screen, *sem_screen_updated, *sem_move_agent;
-int *agent;
 int last_position[4][2];
 int last_enemy = 0;
 char key;
 enum state {PLAY, WIN, LOSE} game_state = PLAY;
-int enemy_time = 0;
 int block_time = 0;
 int move_player = 0;
 int move_enemy = 0;
@@ -51,7 +50,6 @@ char map[25][80][2] = {
 };
 
 void *print_screen (int agent[][2]) {
-  
   clrscr((char *)map);
   
   changeColor(PLAYER_COLOR, 0x0);
@@ -245,9 +243,17 @@ int __attribute__ ((__section__(".text.main")))
     /* Next line, tries to move value 0 to CR3 register. This register is a privileged one, and so it will raise an exception */
      /* __asm__ __volatile__ ("mov %0, %%cr3"::"r" (0) ); */
 
+  struct free_chunks f;
+  struct slab_t s;
+  int *enemy_time;
+
+  init_chunks (&f);
+  create_slab (&f, &s, sizeof(int), sizeof(int));
+  enemy_time = (int *) allocate_mem (&s);
+
   sem_move_agent = semCreate(0);
   sem_update_screen = semCreate(1);
-  sem_screen_updated = semCreate(0);
+  sem_screen_updated = semCreate(0); 
   
   int *agent = (int *) memRegGet(1);
   init_agent(agent);
@@ -256,13 +262,15 @@ int __attribute__ ((__section__(".text.main")))
   create_thread (key_read, 1, (void *) &key);
   create_thread ((void *) move_agent, 1, (void *) agent);  
 
+  *enemy_time = 0;
+
   // Threat to test return without exit
   int v;
   create_thread (test, 1, &v);
 
   while(1) {
-    if (gettime() >= enemy_time + ENEMY_DELAY) {
-      enemy_time = gettime();
+    if (gettime() >= *enemy_time + ENEMY_DELAY) {
+      *enemy_time = gettime();
       move_enemy = 1;
       semSignal(sem_move_agent);
     }
