@@ -83,6 +83,7 @@ int allocate_tables(struct task_struct *t)
       // Allocate dynamic memory list
       INIT_LIST_HEAD(&dinamic_lists[i]);
       t->dinamic_mem = &dinamic_lists[i];
+
       return 1;
     }
   }

@@ -8,13 +8,19 @@
 #define BG_LOSE 0x1
 #define LOSE_COLOR 0xC
 #define RESPONSE_DELAY 50
+#define ENEMY_DELAY 80
 
-sem_t *sem_mutex, *sem_move_agent;
-int agent[4][2] = {{1, 23}, {5, 5}, {20, 23}, {75, 10}};
+sem_t *sem_update_screen, *sem_screen_updated, *sem_move_agent;
+int *agent;
 int last_position[4][2];
 int last_enemy = 0;
 char key;
 enum state {PLAY, WIN, LOSE} game_state = PLAY;
+int enemy_time = 0;
+int block_time = 0;
+int move_player = 0;
+int move_enemy = 0;
+int add_block = 0;
 
 char map[25][80][2] = {
 {{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},},
@@ -44,9 +50,9 @@ char map[25][80][2] = {
 {{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},{'#', 0x0F},},
 };
 
-void *print_screen (void *s) {
+void *print_screen (int agent[][2]) {
   
-  clrscr((char *)s);
+  clrscr((char *)map);
   
   changeColor(PLAYER_COLOR, 0x0);
   gotoXY(agent[0][0], agent[0][1]);
@@ -61,7 +67,7 @@ void *print_screen (void *s) {
   write(1, "E", 1);
   
   while(1) {  
-    semWait (sem_mutex);
+    semWait (sem_update_screen);
     
     if (last_position[0][0] != agent[0][0] || last_position[0][1] != agent[0][1]) {
       changeColor(GROUND, 0x0); 
@@ -104,7 +110,7 @@ void *print_screen (void *s) {
       exit();
     }
   
-    semSignal (sem_mutex);
+    semSignal (sem_screen_updated);
   }
 }
 
@@ -113,84 +119,112 @@ void *move_agent (int s[][2]) {
  
   while (1) {
 	  semWait (sem_move_agent);
-	  semWait (sem_mutex);
+	  semWait (sem_screen_updated);
 	  
-	  last_position[0][0] = agent[0][0]; last_position[0][1] = agent[0][1];
-	  last_position[1][0] = agent[1][0]; last_position[1][1] = agent[1][1];
-	  last_position[2][0] = agent[2][0]; last_position[2][1] = agent[2][1];
-	  last_position[3][0] = agent[3][0]; last_position[3][1] = agent[3][1];
+	  last_position[0][0] = s[0][0]; last_position[0][1] = s[0][1];
+	  last_position[1][0] = s[1][0]; last_position[1][1] = s[1][1];
+	  last_position[2][0] = s[2][0]; last_position[2][1] = s[2][1];
+	  last_position[3][0] = s[3][0]; last_position[3][1] = s[3][1];
 	  
-		px = s[0][0];
-		py = s[0][1];
+	  if (move_player == 1)  {
+		  px = s[0][0];
+  		py = s[0][1];
 	  
-	  switch (key)
-		{
-		  case 'w':
-		    if (map[py-1][px][0] != '#')
-		 	    py--;
-		  	break;
-		  case 'a':
-			  if (map[py][px-1][0] != '#')
-			    px--;
-			  break;
-		  case 's':
-			  if (map[py+1][px][0] != '#')
-		      py++;
-			  break;
-      case 'd':
-			  if (map[py][px+1][0] != '#')
-			    px++;
-			  break;
+	    switch (key)
+	  	{
+	  	  case 'w':
+	  	    if (map[py-1][px][0] != '#')
+	  	 	    py--;
+	  	  	break;
+	  	  case 'a':
+	  		  if (map[py][px-1][0] != '#')
+	  		    px--;
+	  		  break;
+	  	  case 's':
+	  		  if (map[py+1][px][0] != '#')
+	  	      py++;
+	  		  break;
+        case 'd':
+	  		  if (map[py][px+1][0] != '#')
+	  		    px++;
+	  		  break;
+	    }
+	    s[0][0] = px;
+	    s[0][1] = py;
+	    move_player = 0;
 	  }
-	  s[0][0] = px;
-	  s[0][1] = py;
-	  
-	  int i = last_enemy+1;
-	  ex = s[i][0];
-	  ey = s[i][1];
+	  else if (move_enemy == 1) {
+	    int i = last_enemy+1;
+  	  ex = s[i][0];
+	    ey = s[i][1];
+	        
+      if (ex - s[0][0] > 0)
+        targetx = ex-1;
+      else
+        targetx = ex+1;
+         
+      if (ey - s[0][1] > 0)
+        targety = ey-1;
+      else
+        targety = ey+1;
+       
+      if (map[targety][targetx][0] == '#' && map[targety][ex][0] != '#')
+        targetx = ex;
+      else if (map[targety][targetx][0] == '#' && map[ey][targetx][0] != '#')
+        targety = ey;
+      else if (map[targety][targetx][0] == '#') {
+        targetx = ex;
+        targety = ey;
+      }
+      
+      last_enemy = (last_enemy+1)%3;
+      move_enemy = 0;
 	      
-    if (ex - px > 0)
-      targetx = ex-1;
-    else
-      targetx = ex+1;
-       
-    if (ey - py > 0)
-      targety = ey-1;
-    else
-      targety = ey+1;
-       
-    if (map[targety][targetx][0] == '#' && map[targety][ex][0] != '#')
-      targetx = ex;
-    else if (map[targety][targetx][0] == '#' && map[ey][targetx][0] != '#')
-      targety = ey;
-    else if (map[targety][targetx][0] == '#') {
-      targetx = ex;
-      targety = ey;
+      s[i][0] = targetx;
+      s[i][1] = targety;
     }
-	      
-    s[i][0] = targetx;
-    s[i][1] = targety;
     
     for (int j = 1; j <= 3; j++)
-	    if (s[i][0] == s[0][0] && s[i][1] == s[0][1]) {
+      if (s[j][0] == s[0][0] && s[j][1] == s[0][1]) {
         game_state = LOSE;
         break;
-    }
-    else if (map[s[0][1]][s[0][0]][0] == '[')
-	    game_state = WIN;
-	 
-	  last_enemy = (last_enemy+1)%3;
-	
-	  semSignal (sem_mutex);
+      }
+      else if (map[s[0][1]][s[0][0]][0] == '[')
+	      game_state = WIN;
+	   
+	  semSignal (sem_update_screen);
 	}
 }
 
 void *key_read (void *s) {
 	
 	while (1) {
-	  if (getKey((char *)s, RESPONSE_DELAY) > -1)
+	  if (getKey((char *)s, RESPONSE_DELAY) > -1) {
+  	  move_player = 1;
 	    semSignal (sem_move_agent);  
+	  }
 	}
+}
+
+void init_agent(int *agent) {
+	int i = 0;
+	agent[i*2] = 1;
+	agent[i*2 + 1] = 23;
+	
+	i++;
+	
+	agent[i*2] = 5;
+	agent[i*2 + 1] = 5;
+	
+	i++;
+	
+	agent[i*2] = 20;
+	agent[i*2 + 1] = 23;
+	
+	i++;
+	
+	agent[i*2] = 75;
+	agent[i*2 + 1] = 10;
 }
 
 void *test (void *s)
@@ -212,9 +246,13 @@ int __attribute__ ((__section__(".text.main")))
      /* __asm__ __volatile__ ("mov %0, %%cr3"::"r" (0) ); */
 
   sem_move_agent = semCreate(0);
-  sem_mutex = semCreate(1);
+  sem_update_screen = semCreate(1);
+  sem_screen_updated = semCreate(0);
   
-  create_thread (print_screen, 1, (void *) map);
+  int *agent = (int *) memRegGet(1);
+  init_agent(agent);
+  
+  create_thread ((void *) print_screen, 1, (void *) agent);
   create_thread (key_read, 1, (void *) &key);
   create_thread ((void *) move_agent, 1, (void *) agent);  
 
@@ -223,6 +261,11 @@ int __attribute__ ((__section__(".text.main")))
   create_thread (test, 1, &v);
 
   while(1) {
+    if (gettime() >= enemy_time + ENEMY_DELAY) {
+      enemy_time = gettime();
+      move_enemy = 1;
+      semSignal(sem_move_agent);
+    }
   }
 	
 } 

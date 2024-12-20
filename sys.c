@@ -18,6 +18,7 @@ extern void (*exit)(void);
 
 extern struct list_head freesems;
 extern struct list_head freedinamic;
+extern struct list_head freeslabs;
 extern struct sem_t sems[MAX_SEM];
 
 extern Byte x, y;
