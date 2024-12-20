@@ -14,7 +14,7 @@
 #define KERNEL_STACK_SIZE	1024
 
 #define MAX_SEM 10
-#define MAX_DIN 2
+#define MAX_DIN 10
 
 struct sem_t {
   int count;

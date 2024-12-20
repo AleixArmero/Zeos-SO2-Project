@@ -442,8 +442,9 @@ int sys_create_thread (void * (*function)(void *param), int N, void *param) {
       return -EINVAL;
   
   if (!access_ok(VERIFY_READ, function, sizeof(void *)) ||
-      !access_ok(VERIFY_WRITE, param, sizeof(void *)))
+      !access_ok(VERIFY_WRITE, param, sizeof(void *))) {
       return -EINVAL;
+  }
 
   struct list_head *lhcurrent = NULL;
   union task_union *uchild;

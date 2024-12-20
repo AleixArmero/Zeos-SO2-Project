@@ -242,14 +242,13 @@ int __attribute__ ((__section__(".text.main")))
 {
     /* Next line, tries to move value 0 to CR3 register. This register is a privileged one, and so it will raise an exception */
      /* __asm__ __volatile__ ("mov %0, %%cr3"::"r" (0) ); */
-
-  struct free_chunks f;
-  struct slab_t s;
   int *enemy_time;
 
-  init_chunks (&f);
-  create_slab (&f, &s, sizeof(int), sizeof(int));
-  enemy_time = (int *) allocate_mem (&s);
+  struct slab_t slab;
+  
+  init_slab(&slab, sizeof(int), sizeof(int));
+
+  enemy_time = (int *) allocate_mem (&slab);
 
   sem_move_agent = semCreate(0);
   sem_update_screen = semCreate(1);
@@ -259,8 +258,12 @@ int __attribute__ ((__section__(".text.main")))
   init_agent(agent);
   
   create_thread ((void *) print_screen, 1, (void *) agent);
+  perror();
   create_thread (key_read, 1, (void *) &key);
   create_thread ((void *) move_agent, 1, (void *) agent);  
+
+  //create_slab (&f, &s, sizeof(int), sizeof(int));
+  //enemy_time = (int *) allocate_mem (&s);
 
   *enemy_time = 0;
 

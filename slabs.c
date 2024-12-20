@@ -1,93 +1,78 @@
 #include <slabs.h>
 
 #define PAGESIZE 4096
-#define MAXCHUNKS 32
 
-struct mem_chunk mems[MAXCHUNKS];
+void deleteOccupiedSpace(int pos, struct slab_t *slab) {
 
-// Initializes the total amount of available memory chunks
-// First use this function
-void init_chunks (struct free_chunks *f)
-{
-  INIT_LIST_HEAD (&f->freelist);
-  for (int i = 0; i < MAXCHUNKS; i++)
-    list_add_tail(&(mems[i].anchor), &f->freelist);
-  f->size = MAXCHUNKS;
+  unsigned int mem_pos = slab->occupiedSpaces[pos];
+  slab->freeSpaces[slab->left] = mem_pos;
+  slab->left++;
+
+
+  slab->count--;
+
+  for (int i = pos; i < slab->count-1; i++) {
+    slab->occupiedSpaces[i] = slab->occupiedSpaces[i+1];
+  }
+
 }
 
 // Creates an slab allocator and return the number of chunks available
 // Returns -1 if error
-int create_slab(struct free_chunks *f, struct slab_t *slab, unsigned int elem_size, unsigned int mem_size) {
+void init_slab(struct slab_t *slab, unsigned int elem_size, unsigned int mem_size) {
 
-    int n = mem_size/elem_size;
-    if (n > f->size)
-      return -1;
-    
-    INIT_LIST_HEAD(&slab->freemem);
-    INIT_LIST_HEAD(&slab->filledmem);
+  int elem_amount = elem_size/mem_size;
 
-    char *mem = memRegGet ((mem_size/PAGESIZE)+1);
-    if (mem == (char *) 0)
-    	return -1;
-    slab->mem = mem;
+  slab->left = elem_amount;
+  slab->count = 0;
+  char *mem = memRegGet(mem_size/PAGESIZE + 1);
+  slab->mem = mem;
 
-    for (int i = 0; i < n; i++){
-      struct list_head *l = list_first (&f->freelist);
-      struct mem_chunk *m = list_entry (l, struct mem_chunk, anchor);
-      m->mem_pos = (char *) (((unsigned) mem) + elem_size * i);
-      list_del (l);
-      list_add_tail (l, &slab->freemem);
-    }
+  slab->freeSpaces = (unsigned int*) memRegGet(elem_amount*sizeof(unsigned int)/PAGESIZE + 1);
+  slab->occupiedSpaces = (unsigned int*) memRegGet(elem_amount*sizeof(unsigned int)/PAGESIZE + 1);
 
-    f->size -= n;
-    return n;
+  slab->freeSpaces[0] = (unsigned int) mem;
+
+  for (int i = 1; i < elem_amount; i++) {
+    slab->freeSpaces[i] = slab->freeSpaces[i-1] + i*elem_size;
+  }
+
 }
 
-int detroy_slab (struct free_chunks *f, struct slab_t *slab) {
-  int i = 0;
-  struct list_head *pos, *n;
-  list_for_each_safe (pos, n, &slab->freemem) {
-    list_del (pos);
-    list_add_tail (pos, &f->freelist);
-    i++;
-  }
-  list_for_each_safe (pos, n, &slab->filledmem) {
-    list_del (pos);
-    list_add_tail (pos, &f->freelist);
-    i++;
-  }
-  memRegDel (slab->mem);
-  f->size += i;
-  return 0;
+int detroy_slab (struct slab_t *slab) {
+  memRegDel((char *)slab->freeSpaces);
+  memRegDel((char *)slab->occupiedSpaces);
+  memRegDel(slab->mem);
+  return 1;
 }
 
 // Deallocates a mem chunk of an slab
 // Returns -1 if addr does not point to any chunk of this slab
 int deallocate_mem(struct slab_t *slab, char *addr)
 {
-  struct list_head *pos, *n;
-  list_for_each_safe (pos, n, &slab->filledmem) {
-    struct mem_chunk *m = list_entry (pos, struct mem_chunk, anchor);
-    if (addr == m->mem_pos) {
-      list_del (&m->anchor);
-      list_add_tail (&m->anchor, &slab->freemem);
+  for (int i = 0; i < slab->count; i++) {
+    if (slab->occupiedSpaces[i] == (unsigned int) addr) {
+      deleteOccupiedSpace(i, slab);
       return 0;
     }
   }
-
-  return -1; 
+  return -1;
 }
 
 // Allocates a memory chunk
 // Returns 0 if there are not chuncks available
 char *allocate_mem(struct slab_t *slab)
 {
-  if (list_empty(&slab->freemem))
-    return 0;
+  if (slab->left == 0) return 0;
 
-  struct list_head *l = list_first (&slab->freemem);
-  struct mem_chunk *m = list_entry (l, struct mem_chunk, anchor);
-  list_del (l);
-  list_add_tail (l, &slab->filledmem);
-  return m->mem_pos;
+  slab->left--;
+
+  char *return_mem = (char *) slab->freeSpaces[slab->left];
+
+  slab->occupiedSpaces[slab->count] = slab->freeSpaces[slab->left];
+
+  slab->count++;
+
+  return return_mem;
+
 }
